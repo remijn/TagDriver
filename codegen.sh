@@ -1,0 +1,1 @@
+zbus-xmlgen --session org.mpris.MediaPlayer2.playerctld /org/mpris/MediaPlayer2 >> ./src/zbus/playerctld.rs

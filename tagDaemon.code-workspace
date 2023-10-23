@@ -1,0 +1,41 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "type": "cargo",
+                "command": "build",
+                "problemMatcher": ["$rustc"],
+                "label": "Cargo Build"
+            },
+            {
+                "type": "cargo",
+                "command": "run",
+                "problemMatcher": ["$rustc-watch"],
+                "label": "Cargo Run"
+            }
+        ]
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Launch",
+                "type": "lldb",
+                "sourceLanguages": ["rust"],
+                "request": "launch",
+                "program": "${workspaceFolder}/target/debug/tag_daemon",
+                "preLaunchTask": "Cargo Build"
+                // "args": ["-arg1", "-arg2"]
+            }
+        ]
+    }
+}
