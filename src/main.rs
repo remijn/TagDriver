@@ -36,7 +36,8 @@ async fn main_thread(tx: Sender<EInkCommand>, mut rx: Receiver<EInkResponse>) {
 
     let start = Instant::now();
 
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    #[allow(unused_variables)]
+    let interval = tokio::time::interval(Duration::from_secs(1));
 
     loop {
         // Proccess from the serial thread without blocking

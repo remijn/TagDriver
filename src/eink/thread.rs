@@ -9,6 +9,7 @@ use tokio::{
 
 use super::interface::Interface;
 
+#[allow(dead_code)]
 pub enum EInkResponse {
     READY,
     BUSY,
@@ -30,6 +31,7 @@ pub enum EInkCommand {
 }
 
 impl EInkCommand {
+    #[allow(dead_code)]
     pub(crate) fn full(buffer: Vec<u8>) -> Self {
         EInkCommand::SHOW {
             buffer,
@@ -43,6 +45,7 @@ impl EInkCommand {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn fast(buffer: Vec<u8>) -> Self {
         EInkCommand::SHOW {
             buffer,
@@ -56,6 +59,7 @@ impl EInkCommand {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn partial(buffer: Vec<u8>, x: u32, y: u32, width: u32, height: u32) -> Self {
         EInkCommand::SHOW {
             buffer,
