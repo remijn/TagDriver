@@ -1,85 +1,35 @@
-use std::time::{Duration, Instant};
+use std::{error::Error, time::Duration};
 
 mod dbus;
 mod display;
 mod eink;
 
-use debug_print::debug_println;
-
-use display::generate_image;
-use eink::{EInkCommand, EInkResponse};
-
-use embedded_graphics::prelude::{Point, Size};
-use serialport::{DataBits, Parity, StopBits};
-use tokio::{
-    sync::mpsc::{self, Receiver, Sender},
-    time::sleep,
+use display::{
+    bwr_color::BWRColor,
+    bwr_display::BWRDisplay,
+    components::{bar_dialog::BarDialog, DisplayComponent},
 };
+use eink::{EInkCommand, EInkInterface, EInkResponse};
+
+use embedded_graphics::prelude::DrawTarget;
+use itertools::Itertools;
+use serialport::{DataBits, Parity, StopBits};
+use tokio::{sync::mpsc, time::sleep};
 use tokio_serial::{SerialPort, SerialPortBuilderExt};
 
-const WIDTH: u32 = 250;
-const REAL_HEIGHT: u32 = 122;
-const HEIGHT: u32 = 128;
+use dbus::{BusType, DBusPropertyAdress, DBusProxyAdress};
 
-async fn main_thread(tx: Sender<EInkCommand>, mut rx: Receiver<EInkResponse>) {
-    let mut state: EInkResponse = EInkResponse::READY;
-    let mut display = display::bwr_display::BWRDisplay::new();
-
-    generate_image(&mut display, 0).expect("?");
-    let mut br_buffers = display.get_fixed_buffer();
-    let both = [br_buffers.0, br_buffers.1].concat();
-    let mut update = EInkCommand::full(both);
-    tx.send(update).await.expect("Error sending to main thread");
-
-    let start = Instant::now();
-
-    let mut next_refresh = Instant::now();
-
-    loop {
-        // Proccess from the serial thread without blocking
-        if let Ok(message) = rx.try_recv() {
-            debug_println!("main got state {}", message);
-            // Handle the received message.
-            state = message;
-        }
-        if next_refresh > Instant::now() {
-            sleep(Duration::from_millis(50)).await;
-            continue;
-        }
-
-        match state {
-            EInkResponse::READY => {
-                state = EInkResponse::BUSY; //Asume the state here
-                next_refresh = Instant::now() + Duration::from_secs(10);
-
-                let i = (start.elapsed().as_millis() as f32 / 1000.0 % 5.0 * 20.0) as u32;
-
-                generate_image(&mut display, i).expect("?");
-
-                let p = Point::new(100, 0);
-                let s = Size::new(50, 128);
-
-                br_buffers = display.get_fixed_buffer();
-                let partial = display.partial_buffer(br_buffers.0.as_slice(), p, s);
-
-                // both = [br_buffers.0, br_buffers.1].concat();
-                update = EInkCommand::partial(partial, p.x as u32, p.y as u32, s.width, s.height);
-                tx.send(update).await.expect("Error sending to main thread");
-                tokio::time::sleep(Duration::from_millis(250)).await;
-            }
-            _ => {}
-        }
-    }
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // --------- UART SETUP ---------
+fn spawn_eink_thread(
+    port: &str,
+    baud: u32,
+    width: u32,
+    height: u32,
+) -> Result<EInkInterface, Box<dyn Error>> {
     // Create the serial port
-    let mut port = tokio_serial::new(eink::PORT, eink::BAUD_RATE)
+    let mut port = tokio_serial::new(port, baud)
         .timeout(Duration::from_millis(1000))
         .open_native_async()
-        .expect(format!("Failed to connect to device {}", eink::PORT).as_str());
+        .expect(format!("Failed to connect to device {}", port).as_str());
 
     port.set_exclusive(false)?;
 
@@ -101,52 +51,174 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Could not spawn thread");
     });
 
+    return Ok(EInkInterface {
+        rx,
+        tx,
+        state: EInkResponse::OK,
+        width,
+        height,
+    });
+}
+
+const SCREEN_COUNT: u8 = 2;
+const BG_COLOR: BWRColor = BWRColor::Off;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let interface1: EInkInterface = spawn_eink_thread(
+        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_E66038B71367A831-if00",
+        912600,
+        250,
+        128,
+    )?;
+
+    let interface2: EInkInterface = spawn_eink_thread(
+        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_E66038B71367A831-if04",
+        912600,
+        300,
+        400,
+    )?;
+
+    let mut screens: [(BWRDisplay, EInkInterface); SCREEN_COUNT as usize] =
+        [interface1, interface2].map(|interface| {
+            (
+                BWRDisplay::new(interface.width, interface.height),
+                interface,
+            )
+        });
+
     // --------- DBUS SETUP ---------
 
-    let mut dbus_interface = dbus::interface::DBusInterface::new().expect("Could not init DBus");
+    let (dbus_tx, mut dbus_rx) = mpsc::channel::<bool>(20);
+    let mut dbus_interface =
+        dbus::dbus_interface::DBusInterface::new(dbus_tx).expect("Could not connect to DBus");
 
-    let player = dbus::DBusProxyAdress::new(
-        "org.mpris.MediaPlayer2.playerctld".to_string(),
-        "/org/mpris/MediaPlayer2".to_string(),
+    let mut display_components: Vec<&mut dyn DisplayComponent> = Vec::new();
+
+    let backlight_proxy: DBusProxyAdress = DBusProxyAdress::new(
+        BusType::SESSION,
+        "org.gnome.SettingsDaemon.Power",
+        "/org/gnome/SettingsDaemon/Power",
     );
 
-    let playback_status = dbus::DBusPropertyAdress::new(
-        player.clone(),
-        "org.mpris.MediaPlayer2.Player".to_string(),
-        "PlaybackStatus".to_string(),
+    let brightness_property: DBusPropertyAdress = DBusPropertyAdress::new(
+        backlight_proxy,
+        "org.gnome.SettingsDaemon.Power.Screen",
+        "Brightness",
     );
 
-    let metadata = dbus::DBusPropertyAdress::new(
-        player.clone(),
-        "org.mpris.MediaPlayer2.Player".to_string(),
-        "Metadata".to_string(),
+    let mut brightness_dialog = BarDialog::new("brightness dialog", brightness_property, 0);
+    display_components.push(&mut brightness_dialog);
+    // display_components.push(&mut brightness_dialog);
+
+    let player_proxy: DBusProxyAdress = DBusProxyAdress::new(
+        BusType::SESSION,
+        "org.mpris.MediaPlayer2.playerctld",
+        "/org/mpris/MediaPlayer2",
     );
+    let player_volume_property: DBusPropertyAdress =
+        DBusPropertyAdress::new(player_proxy, "org.mpris.MediaPlayer2.Player", "Volume");
 
-    dbus_interface.register_property(playback_status)?;
-    dbus_interface.register_property(metadata)?;
+    let mut player_volume_dialog =
+        BarDialog::new("player volume dialog", player_volume_property, 0);
 
-    let power = dbus::DBusProxyAdress::new(
-        "org.gnome.SettingsDaemon.Power".to_string(),
-        "/org/gnome/SettingsDaemon/Power".to_string(),
-    );
+    display_components.push(&mut player_volume_dialog);
 
-    let backlight = dbus::DBusPropertyAdress::new(
-        power.clone(),
-        "org.gnome.SettingsDaemon.Power.Screen".to_string(),
-        "Brightness".to_string(),
-    );
+    // display_components.push(&mut player_volume_dialog);
 
-    dbus_interface.register_property(backlight)?;
-
-    tokio::spawn(async move {
-        dbus_interface.init(); //.expect("Could not init DBus");
-        dbus::thread::run_thread(dbus_interface).await;
-    });
-
-    // Run the main thread
-    if false {
-        main_thread(tx, rx).await;
+    let mut properties: Vec<DBusPropertyAdress> = Vec::new();
+    // Get all the wanted properties
+    let iter = display_components.iter();
+    for component in iter {
+        if let Some(dbus) = component.dbus() {
+            properties.append(
+                &mut dbus
+                    .wanted_dbus_values()
+                    .iter()
+                    .map(|v| (*v).clone())
+                    .collect_vec(),
+            );
+        }
     }
 
-    Ok(())
+    let dbus_values = dbus_interface.values.clone();
+
+    tokio::spawn(async move {
+        dbus_interface.init(properties).await; //.expect("Could not init DBus");
+        dbus_interface.run().await;
+    });
+
+    // ----- Our Main Program Loop -----
+    loop {
+        // Proccess dmesg updates
+
+        let mut needs_update: Vec<bool> = [false; SCREEN_COUNT as usize].to_vec().clone();
+
+        while let Ok(_has_new) = dbus_rx.try_recv() {
+            let values = &dbus_values.lock().await;
+
+            for component in display_components.iter_mut() {
+                let mut needs = false;
+
+                if let Some(dbus) = component.dbus() {
+                    // Is updated needed by dbus?
+                    needs = dbus.needs_refresh(&values);
+                }
+
+                if needs {
+                    println!(
+                        "Component \"{}\" requests update on screen {}",
+                        component.get_name(),
+                        component.get_screen()
+                    )
+                }
+                needs_update[component.get_screen() as usize] |= needs;
+            }
+        }
+        for (i, (display, interface)) in screens.iter_mut().enumerate() {
+            if needs_update[i] {
+                // Screen I needs an update, lets wrender
+
+                println!("Rendering screen {}", i);
+
+                // clear the screen
+                display.clear(BG_COLOR)?;
+
+                // list of components filtered by the current screen
+                let components = display_components
+                    .iter_mut()
+                    .filter(|component| component.get_screen() == i as u8);
+
+                let values = Box::new(dbus_values.lock().await.clone());
+
+                // Draw the components to the screen's framebuffer
+                for component in components {
+                    if component.get_screen() != i as u8 {
+                        continue;
+                    }
+                    component.draw(display, values.clone())?;
+                }
+
+                drop(values);
+
+                let (black, _red) = display.get_fixed_buffer();
+
+                interface
+                    .fast(black)
+                    .await
+                    .expect("Error sending to main thread");
+            }
+        }
+        sleep(Duration::from_millis(10)).await;
+    }
+    // interface2
+    //     .tx
+    //     .send(EInkCommand::LED { color: 2 })
+    //     .await
+    //     .expect("Error setting LED");
+
+    // Run the main thread
+    // if false {
+    // main_thread(interface1).await;
+    // }
 }

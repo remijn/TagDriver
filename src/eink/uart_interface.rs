@@ -12,23 +12,17 @@ const DELIMITER: &str = "\r\n"; // Hardcoded to "\r\n"
 const CHUNK_DELAY: u64 = 30; // Delay in milliseconds between sending chunks (adjust as needed).
 const CHUNK_SIZE: usize = 1000;
 
-#[allow(dead_code)]
-const BUSY_DELAY: u64 = 50;
-
-#[allow(dead_code)]
-const BUFFER_SIZE: u32 = 250 * 128 * 2 / 8; // 2x for red channel
-
 // Define an Interface struct to manage the serial port.
-pub struct EInkInterface {
+pub struct EInkUartInterface {
     // reader: BufReader<Box<dyn SerialPort>>,
     port: Box<SerialStream>,
 }
 
-impl EInkInterface {
+impl EInkUartInterface {
     pub fn new(port: Box<SerialStream>) -> Result<Self, serialport::Error> {
         // let reader = BufReader::new(port);
 
-        Ok(EInkInterface { port })
+        Ok(EInkUartInterface { port })
     }
 
     pub fn dump_rx(&mut self) {
@@ -77,11 +71,7 @@ impl EInkInterface {
 
     pub async fn send_cmd(&mut self, cmd: &String) -> Result<EInkResponse, EInkResponse> {
         let start = Instant::now();
-        // debug_println!(
-        //     "-> {:<30} <- {:>10}ms",
-        //     cmd.trim(),
-        //     start.elapsed().as_millis()
-        // );
+        println!("CMD: {}", cmd);
         loop {
             let resp: Result<EInkResponse, EInkResponse> = self.send_message(cmd.as_bytes()).await;
             match resp {
@@ -171,16 +161,21 @@ impl EInkInterface {
 
     #[allow(dead_code)]
     pub async fn reset(&mut self) -> Result<(), EInkResponse> {
-        // Bring DTS and RTS high for 1 second.
-        self.port.write_data_terminal_ready(true)?;
+        // Bring RTS high for 100ms.
+
+        // self.port.write_data_terminal_ready(true)?;
         self.port.write_request_to_send(true)?;
+
         sleep(Duration::from_millis(100)).await; //Sleep to reset
-        self.port.write_data_terminal_ready(false)?;
+
+        // self.port.write_data_terminal_ready(false)?;
+
         self.port.write_request_to_send(false)?;
         sleep(Duration::from_millis(100)).await; //Wait for start
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn wait_ready(&mut self) -> Result<EInkResponse, EInkResponse> {
         let cmd: String = "AT+READY=\r\n".to_string();
         return self.send_cmd(&cmd).await;
@@ -233,6 +228,6 @@ impl EInkInterface {
         if let Err(error) = self.send_cmd(&cmd).await {
             println!("Error showing image, {}", error);
         }
-        sleep(Duration::from_millis(400)).await; //Wait for start
+        sleep(Duration::from_millis(250)).await; //Wait for start
     }
 }

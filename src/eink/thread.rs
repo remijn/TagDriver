@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use tokio::{
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::{error::TryRecvError, Receiver, Sender},
     time::sleep,
 };
 use tokio_serial::SerialStream;
 
-use super::{interface::EInkInterface, EInkCommand, EInkResponse};
+use super::{uart_interface::EInkUartInterface, EInkCommand, EInkResponse};
 
 pub(crate) async fn run_thread(
     port: Box<SerialStream>,
@@ -15,15 +15,30 @@ pub(crate) async fn run_thread(
 ) -> Result<bool, EInkResponse> {
     println!("() Starting AT Thread");
 
-    let mut interface = EInkInterface::new(port).expect("Could not create interface");
+    let mut interface = EInkUartInterface::new(port).expect("Could not create interface");
 
     interface.reset().await.expect("Error resetting interface");
 
     loop {
-        let resp: Option<EInkCommand> = rx.recv().await;
+        let mut resp: Result<EInkCommand, TryRecvError> = rx.try_recv();
+
+        let mut frames_dropped: u32 = 0;
+
+        loop {
+            let _resp = rx.try_recv();
+            if _resp.is_err() {
+                break;
+            }
+            frames_dropped += 1;
+            resp = _resp;
+        }
+
+        if frames_dropped > 0 {
+            println!("Dropped {} frames", frames_dropped)
+        }
 
         match resp {
-            Some(EInkCommand::SHOW {
+            Ok(EInkCommand::SHOW {
                 buffer,
                 x,
                 y,
@@ -49,11 +64,14 @@ pub(crate) async fn run_thread(
                     )
                     .await;
 
-                sleep(Duration::from_millis(1000)).await;
-                interface.wait_ready().await?;
+                // sleep(Duration::from_millis(200)).await;
+                // interface.wait_ready().await?;
                 tx.send(EInkResponse::READY).await.expect("Error Sending");
             }
-            None => continue,
+            Ok(EInkCommand::LED { color }) => {
+                interface.set_led(color).await?;
+            }
+            Err(_e) => sleep(Duration::from_millis(10)).await,
         }
     }
 }

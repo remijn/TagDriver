@@ -1,44 +1,57 @@
-use super::super::{HEIGHT, REAL_HEIGHT, WIDTH};
 use super::bwr_color::BWRColor;
 
-use core::convert::TryInto;
 use embedded_graphics::prelude::*;
 pub struct BWRDisplay {
     /// The framebuffer with a single byte per pixel
-    framebuffer: [u8; (WIDTH * HEIGHT) as usize],
-    // black_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
-    // red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
+    framebuffer: Vec<u8>,
+    width: u32,
+    height: u32,
+    buffer_height: u32, // black_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
+                        // red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
 }
 
 impl BWRDisplay {
-    pub fn new() -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
+        let mut buffer_height: u32 = height;
+
+        if buffer_height % 8 != 0 {
+            buffer_height = (buffer_height / 8 + 1) * 8;
+        }
+
+        let mut framebuffer = Vec::<u8>::with_capacity((width * buffer_height) as usize);
+        framebuffer.resize((width * buffer_height) as usize, 0);
+
         Self {
-            framebuffer: [0; (WIDTH * HEIGHT) as usize],
+            framebuffer,
+            width,
+            height,
+            buffer_height,
         }
     }
 
     pub fn get_fixed_buffer(&mut self) -> (Vec<u8>, Vec<u8>) {
         // New correctly sized buffer
-        let mut black_buffer: [u8; (WIDTH * HEIGHT / 8) as usize] =
-            [0; (WIDTH * HEIGHT / 8) as usize];
-        let mut red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize] =
-            [0; (WIDTH * HEIGHT / 8) as usize];
+        let mut black_buffer = Vec::<u8>::new();
+        black_buffer.resize((self.width * (self.buffer_height / 8)) as usize, 0);
+
+        let mut red_buffer = Vec::<u8>::new();
+        red_buffer.resize((self.width * (self.buffer_height / 8)) as usize, 0);
 
         let mut i = 0;
-        while i < WIDTH * HEIGHT / 8 {
+        while i < self.width * self.height / 8 {
             //Iterate through new buff, I is bytes
             let mut black_byte: u8 = 0b0000_0000;
             let mut red_byte: u8 = 0b0000_0000;
             let bit: u8 = 0b1000_0000;
 
-            let mut j: u8 = 0;
+            let mut j: u32 = 0;
             while j < 8 {
                 //Iterate through bits
 
-                if (self.framebuffer[((i * 8) + j as u32) as usize]) == 1 {
+                if (self.framebuffer[((i * 8) + j) as usize]) == 1 {
                     black_byte |= bit >> j;
                 }
-                if (self.framebuffer[((i * 8) + j as u32) as usize]) == 2 {
+                if (self.framebuffer[((i * 8) + j) as usize]) == 2 {
                     red_byte |= bit >> j;
                 }
 
@@ -48,7 +61,7 @@ impl BWRDisplay {
             red_buffer[i as usize] = red_byte;
             i += 1;
         }
-        (black_buffer.to_vec(), red_buffer.to_vec())
+        (black_buffer, red_buffer)
     }
 
     #[allow(dead_code)]
@@ -60,7 +73,9 @@ impl BWRDisplay {
             for ty in 0..size.height / 8 {
                 let buf_i: u32 = tx * size.height / 8 + ty;
 
-                let old_i: u32 = (tx + point.x as u32) * HEIGHT / 8 + ty + (point.y as u32 / 8);
+                let old_i: u32 = (tx + point.x as u32) * self.buffer_height as u32 / 8
+                    + ty
+                    + (point.y as u32 / 8);
 
                 pbuf[buf_i as usize] = black_buffer[old_i as usize];
             }
@@ -85,11 +100,18 @@ impl DrawTarget for BWRDisplay {
             // (250,128)). `DrawTarget` implementation are required to discard any out of bounds
             // pixels without returning an error or causing a panic.
 
-            if let Ok((x @ 0..=249, y @ 0..=121)) = coord.try_into() {
-                // Calculate the index in the framebuffer.
-                let index: u32 = x * 128 + y;
+            // if let Ok((x @ 0..self.width, y @ 0..=121)) = coord.try_into() {
+            // Calculate the index in the framebuffer.
+            if coord.x >= 0
+                && coord.y >= 0
+                && coord.x < self.width as i32
+                && coord.y < self.buffer_height as i32
+            {
+                let index: u32 = coord.x as u32 * self.buffer_height as u32 + coord.y as u32;
                 self.framebuffer[index as usize] = (color) as u8;
             }
+
+            // }
         }
 
         Ok(())
@@ -98,7 +120,7 @@ impl DrawTarget for BWRDisplay {
 
 impl OriginDimensions for BWRDisplay {
     fn size(&self) -> Size {
-        Size::new(WIDTH, REAL_HEIGHT)
+        Size::new(self.width, self.height)
     }
 }
 

@@ -1,8 +1,17 @@
-pub mod interface;
-pub mod thread;
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::Sender;
 
-pub const BAUD_RATE: u32 = 921600; //115200;
-pub const PORT: &str = "/dev/ttyUSB0";
+pub mod thread;
+pub mod uart_interface;
+
+pub struct EInkInterface {
+    pub width: u32,
+    pub height: u32,
+    pub rx: Receiver<EInkResponse>,
+    pub tx: Sender<EInkCommand>,
+    pub state: EInkResponse,
+}
 
 #[derive(Debug, Clone)]
 pub enum EInkResponse {
@@ -14,6 +23,7 @@ pub enum EInkResponse {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum EInkCommand {
     SHOW {
         buffer: Vec<u8>,
@@ -25,40 +35,52 @@ pub enum EInkCommand {
         black_border: bool,
         full_refresh: bool,
     },
+    LED {
+        color: u8,
+    },
 }
 
-impl EInkCommand {
+impl EInkInterface {
     #[allow(dead_code)]
-    pub(crate) fn full(buffer: Vec<u8>) -> Self {
-        EInkCommand::SHOW {
+    pub(crate) async fn full(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
+        self.send_command(EInkCommand::SHOW {
             buffer,
             x: 0,
             y: 0,
-            width: 250,
-            height: 128,
+            width: self.width,
+            height: self.height,
             with_red: true,
             black_border: false,
             full_refresh: true,
-        }
+        })
+        .await
     }
 
     #[allow(dead_code)]
-    pub(crate) fn fast(buffer: Vec<u8>) -> Self {
-        EInkCommand::SHOW {
+    pub(crate) async fn fast(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
+        self.send_command(EInkCommand::SHOW {
             buffer,
             x: 0,
             y: 0,
-            width: 250,
-            height: 128,
+            width: self.width,
+            height: self.height,
             with_red: false,
             black_border: false,
             full_refresh: false,
-        }
+        })
+        .await
     }
 
     #[allow(dead_code)]
-    pub(crate) fn partial(buffer: Vec<u8>, x: u32, y: u32, width: u32, height: u32) -> Self {
-        EInkCommand::SHOW {
+    pub(crate) async fn partial(
+        &mut self,
+        buffer: Vec<u8>,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<(), SendError<EInkCommand>> {
+        self.send_command(EInkCommand::SHOW {
             buffer,
             x,
             y,
@@ -67,7 +89,15 @@ impl EInkCommand {
             with_red: false,
             black_border: false,
             full_refresh: false,
-        }
+        })
+        .await
+    }
+
+    pub(crate) async fn send_command(
+        &mut self,
+        command: EInkCommand,
+    ) -> Result<(), SendError<EInkCommand>> {
+        self.tx.send(command).await
     }
 }
 
