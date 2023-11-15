@@ -6,6 +6,8 @@ use tokio::time::sleep;
 // use tokio_serial::SerialPortBuilderExt;
 use tokio_serial::SerialStream;
 
+use crate::log;
+
 use super::EInkResponse;
 
 const DELIMITER: &str = "\r\n"; // Hardcoded to "\r\n"
@@ -71,7 +73,7 @@ impl EInkUartInterface {
 
     pub async fn send_cmd(&mut self, cmd: &String) -> Result<EInkResponse, EInkResponse> {
         let start = Instant::now();
-        println!("CMD: {}", cmd);
+        println!("{} {}", log::SEND, cmd.trim());
         loop {
             let resp: Result<EInkResponse, EInkResponse> = self.send_message(cmd.as_bytes()).await;
             match resp {
@@ -153,7 +155,7 @@ impl EInkUartInterface {
         } else if response.contains("BUSY") {
             Err(EInkResponse::BUSY)
         } else {
-            println!("!!! Error {} !!!", response);
+            println!("{} Error: {}", log::ERROR, response);
             // sleep(Duration::from_millis(10));
             Err(EInkResponse::ERROR)
         }
@@ -212,21 +214,21 @@ impl EInkUartInterface {
             with_red as u8, x, y, width, height, crc
         );
         if let Err(error) = self.send_cmd(&cmd).await {
-            println!("Error starting image transfer, {}", error);
+            println!("{} Error starting image transfer, {}", log::ERROR, error);
         }
         // sleep(Duration::from_millis(CHUNK_DELAY)); // wait to start transfer
 
         // self.dump_rx();
 
         if let Err(error) = self.send_data_in_chunks(data).await {
-            println!("Error sending data, {}", error);
+            println!("{} Error sending data, {}", log::ERROR, error);
         }
 
         // self.wait_ready();
 
         let cmd = format!("AT+SHOW={} {}\r\n", full_refresh as u8, border as u8);
         if let Err(error) = self.send_cmd(&cmd).await {
-            println!("Error showing image, {}", error);
+            println!("{} Error showing image, {}", log::ERROR, error);
         }
         sleep(Duration::from_millis(250)).await; //Wait for start
     }

@@ -28,20 +28,20 @@ pub struct BarDialog {
     _draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
 }
 
-const OPEN_TIME: Duration = Duration::from_secs(3);
+const OPEN_TIME: Duration = Duration::from_secs(5);
 impl BarDialog {
     pub fn new(
         name: &'static str,
         property: DBusPropertyAdress,
         screen: u8,
-        draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>, // icons: Vec, // icons: Vec<ImageDrawable>,
+        draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
     ) -> Self {
         Self {
             name,
             property,
             screen,
             old_values: Box::new(HashMap::new()),
-            close_at: Instant::now(),
+            close_at: Instant::now() - OPEN_TIME,
             _draw_icon: draw_icon,
         }
     }
@@ -84,7 +84,7 @@ impl DisplayComponent for BarDialog {
             return 100; //new value
         }
 
-        if Instant::now() > self.close_at {
+        if Instant::now() < self.close_at {
             let elapsed = Instant::now() - self.close_at;
             if elapsed < OPEN_TIME {
                 return 90 - (elapsed.as_millis() / 100) as u32;
@@ -99,7 +99,6 @@ impl DisplayComponent for BarDialog {
         target: &mut BWRDisplay,
         values: Box<DBusValueMap>,
     ) -> Result<(), Box<dyn Error>> {
-        self.old_values = values.clone();
         let value = values.get(&self.property).expect(
             format!(
                 "Can't draw component, property {} does not exist in values",
@@ -111,9 +110,10 @@ impl DisplayComponent for BarDialog {
         if let Some(val) = self.old_values.get(&self.property) {
             if val != value {
                 // Different value, we reset timeout and open
-                self.close_at = Instant::now().checked_add(OPEN_TIME).expect("huh?");
+                self.close_at = Instant::now() + OPEN_TIME;
             }
         }
+        self.old_values = values.clone();
 
         let bar_width: u32 = 175;
         let bar_height: u32 = 60;
@@ -164,11 +164,18 @@ impl DisplayComponent for BarDialog {
     fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
         Some(self)
     }
+
+    fn get_refresh_at(&self) -> Option<Instant> {
+        if self.close_at > Instant::now() {
+            return Some(self.close_at);
+        }
+        return None;
+    }
 }
 
 impl DBusConsumer for BarDialog {
-    fn wanted_dbus_values(&self) -> Vec<&DBusPropertyAdress> {
-        return [&self.property].to_vec();
+    fn wanted_dbus_values(&self) -> Vec<DBusPropertyAdress> {
+        return [self.property.clone()].to_vec();
     }
 
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool {

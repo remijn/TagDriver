@@ -2,6 +2,8 @@ use std::{collections::HashMap, fmt::Display};
 
 use dbus::arg::{ArgType, RefArg};
 
+use crate::log;
+
 pub mod dbus_interface;
 mod playerctld;
 
@@ -66,7 +68,11 @@ impl DBusValue {
             ArgType::Double => DBusValue::F64(ref_arg.as_f64().expect("Cast error")),
 
             _ => {
-                println!("Could not convert type {}", ref_arg.arg_type().as_str());
+                println!(
+                    "{} Could not convert type {}",
+                    log::ERROR,
+                    ref_arg.arg_type().as_str()
+                );
                 todo!();
             }
         };

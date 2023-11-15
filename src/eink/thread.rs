@@ -1,19 +1,66 @@
-use std::time::Duration;
+use std::{error::Error, time::Duration};
 
+use serialport::{DataBits, Parity, SerialPort, StopBits};
 use tokio::{
-    sync::mpsc::{error::TryRecvError, Receiver, Sender},
+    sync::mpsc::{self, error::TryRecvError, Receiver, Sender},
     time::sleep,
 };
-use tokio_serial::SerialStream;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
-use super::{uart_interface::EInkUartInterface, EInkCommand, EInkResponse};
+use crate::log;
+
+use super::{uart_interface::EInkUartInterface, EInkCommand, EInkInterface, EInkResponse};
+
+pub fn start_eink_thread(
+    port_str: &'static str,
+    baud: u32,
+    width: u32,
+    height: u32,
+    flip: bool,
+) -> Result<EInkInterface, Box<dyn Error>> {
+    // Create the serial port
+    let mut port = tokio_serial::new(port_str, baud)
+        .timeout(Duration::from_millis(1000))
+        .open_native_async()
+        .expect(format!("Failed to connect to device {}", port_str).as_str());
+
+    port.set_exclusive(true)?;
+
+    const CONFIG_ERROR: &str = "error configuring port";
+    port.set_data_bits(DataBits::Eight).expect(CONFIG_ERROR);
+    port.set_stop_bits(StopBits::One).expect(CONFIG_ERROR);
+    port.set_parity(Parity::None).expect(CONFIG_ERROR);
+
+    // let port_clone = port.try_clone().expect("Could not clone port");
+
+    // Create a channel for communication between threads
+    let (thread_tx, rx) = mpsc::channel::<EInkResponse>(512);
+    let (tx, thread_rx) = mpsc::channel::<EInkCommand>(1024);
+
+    // Spawn the serial thread
+    tokio::spawn(async move {
+        run_thread(Box::new(port), thread_tx, thread_rx)
+            .await
+            .expect("Could not spawn thread");
+    });
+
+    return Ok(EInkInterface {
+        rx,
+        tx,
+        state: EInkResponse::OK,
+        width,
+        height,
+        _port: port_str,
+        flip,
+    });
+}
 
 pub(crate) async fn run_thread(
     port: Box<SerialStream>,
     tx: Sender<EInkResponse>,
     mut rx: Receiver<EInkCommand>,
 ) -> Result<bool, EInkResponse> {
-    println!("() Starting AT Thread");
+    println!("{} Starting AT Thread", log::THREAD);
 
     let mut interface = EInkUartInterface::new(port).expect("Could not create interface");
 
@@ -34,7 +81,7 @@ pub(crate) async fn run_thread(
         }
 
         if frames_dropped > 0 {
-            println!("Dropped {} frames", frames_dropped)
+            println!("{} Dropped {} frames", log::ERROR, frames_dropped)
         }
 
         match resp {
@@ -48,7 +95,6 @@ pub(crate) async fn run_thread(
                 black_border,
                 full_refresh,
             }) => {
-                // debug_println!("AT Got SHOW");
                 tx.send(EInkResponse::BUSY).await.expect("Error Sending");
 
                 interface

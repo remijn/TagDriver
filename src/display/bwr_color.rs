@@ -1,7 +1,7 @@
 use embedded_graphics::{
     pixelcolor::{
         raw::{RawData, RawU2},
-        BinaryColor, PixelColor, Rgb888,
+        BinaryColor, PixelColor, Rgb555, Rgb565, Rgb888,
     },
     prelude::RgbColor,
 };
@@ -187,6 +187,16 @@ impl From<Rgb888> for BWRColor {
             Rgb888::WHITE => Self::On,
             _ => Self::Off,
         }
+    }
+}
+impl From<Rgb555> for BWRColor {
+    fn from(value: Rgb555) -> Self {
+        Self::from(BinaryColor::from(value))
+    }
+}
+impl From<Rgb565> for BWRColor {
+    fn from(value: Rgb565) -> Self {
+        Self::from(BinaryColor::from(value))
     }
 }
 

@@ -2,6 +2,8 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
 
+use crate::log;
+
 pub mod thread;
 pub mod uart_interface;
 
@@ -60,7 +62,7 @@ impl EInkInterface {
 
     #[allow(dead_code)]
     pub(crate) async fn fast(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
-        println!("Fast display on screen {}", self._port);
+        println!("{} Fast display on screen {}", log::SCREEN, self._port);
         self.send_command(EInkCommand::SHOW {
             buffer,
             x: 0,

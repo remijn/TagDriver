@@ -286,6 +286,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 
 [[package]]
+name = "embedded-canvas"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "943e6369e509ff53f657e0e5b75dc4c68ac06f5143238c239413cea8bd3351a8"
+dependencies = [
+ "embedded-graphics",
+ "embedded-graphics-core",
+]
+
+[[package]]
 name = "embedded-graphics"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -537,9 +547,9 @@ checksum = "b72ad49b554c1728b1e83254a1b1565aea4161e28dabbfa171fc15fe62299caf"
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
 dependencies = [
  "either",
 ]
@@ -1238,6 +1248,7 @@ dependencies = [
  "dbus",
  "dbus-tokio",
  "debug_print",
+ "embedded-canvas",
  "embedded-graphics",
  "embedded-graphics-simulator",
  "embedded-icon",
@@ -1245,6 +1256,7 @@ dependencies = [
  "itertools",
  "profont",
  "serialport",
+ "tinybmp",
  "tokio",
  "tokio-serial",
  "tokio-stream",
@@ -1284,6 +1296,15 @@ dependencies = [
  "arrayref",
  "bytemuck",
  "strict-num",
+]
+
+[[package]]
+name = "tinybmp"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "197cc000e382175ff15abd9c54c694ef80ef20cb07e7f956c71e3ea97fc8dc60"
+dependencies = [
+ "embedded-graphics",
 ]
 
 [[package]]

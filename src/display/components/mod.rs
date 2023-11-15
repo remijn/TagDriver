@@ -1,6 +1,9 @@
 use std::{error::Error, time::Instant};
 
 pub mod bar_dialog;
+pub mod image_background;
+pub mod simple_item;
+pub mod state_item;
 
 use embedded_graphics::prelude::Point;
 
@@ -8,7 +11,7 @@ use super::{super::dbus::*, bwr_display::BWRDisplay};
 
 pub trait DBusConsumer {
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool;
-    fn wanted_dbus_values(&self) -> Vec<&DBusPropertyAdress>;
+    fn wanted_dbus_values(&self) -> Vec<DBusPropertyAdress>;
     fn set_initial(&mut self, new_values: &DBusValueMap);
 }
 
@@ -35,9 +38,16 @@ pub trait DisplayComponent {
         values: Box<DBusValueMap>,
     ) -> Result<(), Box<dyn Error>>;
     fn get_z_index(&self, values: &DBusValueMap) -> u32;
+    fn get_refresh_at(&self) -> Option<Instant> {
+        None
+    }
 
-    fn dbus(&self) -> Option<&dyn DBusConsumer>;
-    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer>;
+    fn dbus(&self) -> Option<&dyn DBusConsumer> {
+        None
+    }
+    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
+        None
+    }
 }
 
 pub trait IconComponent {

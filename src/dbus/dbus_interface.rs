@@ -16,6 +16,8 @@ use std::{collections::HashMap, error::Error, sync::Arc, time::Duration};
 
 use stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged;
 
+use crate::log;
+
 use super::{BusType, DBusPropertyAdress, DBusProxyAdress, DBusUpdate, DBusValue, DBusValueMap};
 
 #[allow(dead_code)]
@@ -84,7 +86,7 @@ impl DBusInterface {
         // let conn = self.conn
 
         for (proxy, proxy_properties) in proxies {
-            println!("Init Proxy {} {}", proxy.dest, proxy.path);
+            println!("{} Init Proxy {} {}", log::DBUS, proxy.dest, proxy.path);
 
             let clone_tx = self.tx.clone();
 
@@ -155,11 +157,13 @@ impl DBusInterface {
 
     pub async fn run(&mut self) {
         let values = self.values.lock().await;
-        println!("() Starting DBus Thread with {} watched properties:", {
-            values.len()
-        });
+        println!(
+            "{} Starting DBus Thread with {} watched properties:",
+            log::THREAD,
+            { values.len() }
+        );
         for property in values.keys() {
-            println!("{}", property);
+            println!(" - {} {}", log::DBUS, property);
         }
         drop(values);
 
@@ -184,9 +188,9 @@ impl DBusInterface {
                             updated = true;
                             // value = new_value_option.expect("impossible").box_clone();
                         } // let Some(new_value) = new_value_option => {}
-                        Some(_val) => println!("Recieved empty value????"),
+                        Some(_val) => println!("{} Recieved empty value????", log::ERROR),
                         None => {
-                            println!("Could not match: \n{}", key);
+                            println!("{} Could not match: \n{} {}", log::WARN, log::DBUS, key);
 
                             let matches = values
                                 .keys()
@@ -195,9 +199,9 @@ impl DBusInterface {
                                 })
                                 .into_iter();
 
-                            println!("Did you mean any of these:");
+                            println!("{} Did you mean any of these:", log::WARN);
                             for match_item in matches {
-                                println!("{}", match_item);
+                                println!(" - {} {}", log::DBUS, match_item);
                             }
                         }
                     }
