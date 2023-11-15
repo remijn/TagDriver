@@ -7,11 +7,12 @@ pub struct BWRDisplay {
     width: u32,
     height: u32,
     buffer_height: u32, // black_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
-                        // red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
+    // red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
+    flip: bool,
 }
 
 impl BWRDisplay {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32, flip: bool) -> Self {
         let mut buffer_height: u32 = height;
 
         if buffer_height % 8 != 0 {
@@ -26,6 +27,7 @@ impl BWRDisplay {
             width,
             height,
             buffer_height,
+            flip,
         }
     }
 
@@ -105,9 +107,17 @@ impl DrawTarget for BWRDisplay {
             if coord.x >= 0
                 && coord.y >= 0
                 && coord.x < self.width as i32
-                && coord.y < self.buffer_height as i32
+                && coord.y < self.height as i32
             {
-                let index: u32 = coord.x as u32 * self.buffer_height as u32 + coord.y as u32;
+                let index: u32;
+                if self.flip {
+                    let x = coord.x * -1 + (self.width as i32 - 1);
+                    let y = coord.y * -1 + (self.height as i32 - 1);
+                    index = x as u32 * self.buffer_height as u32 + y as u32;
+                } else {
+                    index = coord.x as u32 * self.buffer_height as u32 + coord.y as u32;
+                }
+
                 self.framebuffer[index as usize] = (color) as u8;
             }
 

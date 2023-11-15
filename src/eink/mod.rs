@@ -11,6 +11,8 @@ pub struct EInkInterface {
     pub rx: Receiver<EInkResponse>,
     pub tx: Sender<EInkCommand>,
     pub state: EInkResponse,
+    pub _port: &'static str,
+    pub flip: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -49,7 +51,7 @@ impl EInkInterface {
             y: 0,
             width: self.width,
             height: self.height,
-            with_red: true,
+            with_red: false,
             black_border: false,
             full_refresh: true,
         })
@@ -58,6 +60,7 @@ impl EInkInterface {
 
     #[allow(dead_code)]
     pub(crate) async fn fast(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
+        println!("Fast display on screen {}", self._port);
         self.send_command(EInkCommand::SHOW {
             buffer,
             x: 0,

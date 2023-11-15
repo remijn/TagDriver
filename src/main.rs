@@ -11,7 +11,15 @@ use display::{
 };
 use eink::{EInkCommand, EInkInterface, EInkResponse};
 
-use embedded_graphics::prelude::DrawTarget;
+use embedded_graphics::{image::Image, prelude::DrawTarget, Drawable};
+use embedded_icon::mdi::size32px::{
+    Brightness1, Brightness2, Brightness3, Brightness4, Brightness5, Brightness6, Brightness7,
+    VolumeHigh, VolumeLow, VolumeMedium, VolumeVariantOff,
+};
+use embedded_icon::NewIcon;
+
+// impl Into<IconObj<T> for Icon<C, T> {}
+
 use itertools::Itertools;
 use serialport::{DataBits, Parity, StopBits};
 use tokio::{sync::mpsc, time::sleep};
@@ -19,19 +27,22 @@ use tokio_serial::{SerialPort, SerialPortBuilderExt};
 
 use dbus::{BusType, DBusPropertyAdress, DBusProxyAdress};
 
+use crate::display::{components::DisplayAreaType, COLOR_FG};
+
 fn spawn_eink_thread(
-    port: &str,
+    port_str: &'static str,
     baud: u32,
     width: u32,
     height: u32,
+    flip: bool,
 ) -> Result<EInkInterface, Box<dyn Error>> {
     // Create the serial port
-    let mut port = tokio_serial::new(port, baud)
+    let mut port = tokio_serial::new(port_str, baud)
         .timeout(Duration::from_millis(1000))
         .open_native_async()
-        .expect(format!("Failed to connect to device {}", port).as_str());
+        .expect(format!("Failed to connect to device {}", port_str).as_str());
 
-    port.set_exclusive(false)?;
+    port.set_exclusive(true)?;
 
     const CONFIG_ERROR: &str = "error configuring port";
     port.set_data_bits(DataBits::Eight).expect(CONFIG_ERROR);
@@ -57,32 +68,43 @@ fn spawn_eink_thread(
         state: EInkResponse::OK,
         width,
         height,
+        _port: port_str,
+        flip,
     });
 }
 
-const SCREEN_COUNT: u8 = 2;
+const SCREEN_COUNT: u8 = 3;
 const BG_COLOR: BWRColor = BWRColor::Off;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let interface1: EInkInterface = spawn_eink_thread(
-        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_E66038B71367A831-if00",
+        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if00",
         912600,
         250,
         128,
+        false,
     )?;
 
     let interface2: EInkInterface = spawn_eink_thread(
-        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_E66038B71367A831-if04",
+        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if04",
+        912600,
+        250,
+        128,
+        true,
+    )?;
+    let interface3: EInkInterface = spawn_eink_thread(
+        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if02",
         912600,
         300,
         400,
+        false,
     )?;
 
     let mut screens: [(BWRDisplay, EInkInterface); SCREEN_COUNT as usize] =
-        [interface1, interface2].map(|interface| {
+        [interface1, interface2, interface3].map(|interface| {
             (
-                BWRDisplay::new(interface.width, interface.height),
+                BWRDisplay::new(interface.width, interface.height, interface.flip),
                 interface,
             )
         });
@@ -107,7 +129,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Brightness",
     );
 
-    let mut brightness_dialog = BarDialog::new("brightness dialog", brightness_property, 0);
+    const COLOR: BWRColor = COLOR_FG;
+
+    const BRIGHTNESS_ICON_COUNT: u32 = 6;
+    let mut brightness_dialog = BarDialog::new(
+        "brightness dialog",
+        brightness_property,
+        0,
+        Box::new(|target: &mut BWRDisplay, val, center| {
+            // const color = BWRColor::Off;
+            match (val * BRIGHTNESS_ICON_COUNT as f64).floor() as u32 {
+                6 => Image::with_center(&Brightness7::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                5 => Image::with_center(&Brightness6::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                4 => Image::with_center(&Brightness5::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                3 => Image::with_center(&Brightness4::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                2 => Image::with_center(&Brightness3::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                1 => Image::with_center(&Brightness2::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                0 | _ => Image::with_center(&Brightness1::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+            };
+        }),
+    ); //[].to_vec());
     display_components.push(&mut brightness_dialog);
     // display_components.push(&mut brightness_dialog);
 
@@ -119,8 +174,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player_volume_property: DBusPropertyAdress =
         DBusPropertyAdress::new(player_proxy, "org.mpris.MediaPlayer2.Player", "Volume");
 
-    let mut player_volume_dialog =
-        BarDialog::new("player volume dialog", player_volume_property, 0);
+    const PLAYER_VOLUME_ICON_COUNT: u32 = 3;
+    let mut player_volume_dialog = BarDialog::new(
+        "player volume dialog",
+        player_volume_property,
+        1,
+        Box::new(|target: &mut BWRDisplay, val, center| {
+            match (val * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
+                3 => Image::with_center(&VolumeHigh::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                2 => Image::with_center(&VolumeMedium::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                1 => Image::with_center(&VolumeLow::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+                0 | _ => Image::with_center(&VolumeVariantOff::new(COLOR), center)
+                    .draw(target)
+                    .ok(),
+            };
+        }),
+    );
 
     display_components.push(&mut player_volume_dialog);
 
@@ -152,31 +227,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         // Proccess dmesg updates
 
-        let mut needs_update: Vec<bool> = [false; SCREEN_COUNT as usize].to_vec().clone();
+        let mut screen_needs_refresh: Vec<bool> = [false; SCREEN_COUNT as usize].to_vec().clone();
 
         while let Ok(_has_new) = dbus_rx.try_recv() {
             let values = &dbus_values.lock().await;
 
-            for component in display_components.iter_mut() {
-                let mut needs = false;
+            for component in display_components.iter() {
+                let mut component_needs_refresh = false;
 
                 if let Some(dbus) = component.dbus() {
                     // Is updated needed by dbus?
-                    needs = dbus.needs_refresh(&values);
+                    component_needs_refresh = dbus.needs_refresh(&values);
                 }
+                // TODO: Add refresh for non dbus components. ie. logo
 
-                if needs {
+                if component_needs_refresh {
                     println!(
                         "Component \"{}\" requests update on screen {}",
                         component.get_name(),
                         component.get_screen()
                     )
                 }
-                needs_update[component.get_screen() as usize] |= needs;
+                screen_needs_refresh[component.get_screen() as usize] |= component_needs_refresh;
             }
         }
         for (i, (display, interface)) in screens.iter_mut().enumerate() {
-            if needs_update[i] {
+            if screen_needs_refresh[i] {
                 // Screen I needs an update, lets wrender
 
                 println!("Rendering screen {}", i);
@@ -184,41 +260,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // clear the screen
                 display.clear(BG_COLOR)?;
 
-                // list of components filtered by the current screen
+                let values = Box::new(dbus_values.lock().await.clone());
+
+                // list of components filtered by the current screen, mapped to zindex, and then sorted
                 let components = display_components
                     .iter_mut()
-                    .filter(|component| component.get_screen() == i as u8);
-
-                let values = Box::new(dbus_values.lock().await.clone());
+                    .filter(|component| component.get_screen() == i as u8)
+                    .map(|component| {
+                        let index = component.get_z_index(&values);
+                        (component, index)
+                    })
+                    .sorted_by(|a, b| Ord::cmp(&b.1, &a.1));
 
                 // Draw the components to the screen's framebuffer
                 for component in components {
-                    if component.get_screen() != i as u8 {
-                        continue;
+                    println!("Render Z:{} {}", component.1, component.0.get_name());
+                    component.0.draw(display, values.clone())?;
+
+                    match component.0.get_type() {
+                        DisplayAreaType::Dialog | DisplayAreaType::Fullscreen => break,
+                        _ => continue,
                     }
-                    component.draw(display, values.clone())?;
                 }
 
                 drop(values);
 
-                let (black, _red) = display.get_fixed_buffer();
+                let (black, _red4) = display.get_fixed_buffer();
 
-                interface
-                    .fast(black)
-                    .await
-                    .expect("Error sending to main thread");
+                // Stupid hack to force full-refresh the right screen
+                if interface.flip {
+                    interface
+                        .full(black)
+                        .await
+                        .expect("Error sending to main thread");
+                } else {
+                    interface
+                        .fast(black)
+                        .await
+                        .expect("Error sending to main thread");
+                }
             }
         }
         sleep(Duration::from_millis(10)).await;
     }
-    // interface2
-    //     .tx
-    //     .send(EInkCommand::LED { color: 2 })
-    //     .await
-    //     .expect("Error setting LED");
-
-    // Run the main thread
-    // if false {
-    // main_thread(interface1).await;
-    // }
 }

@@ -12,6 +12,7 @@ dbus-tokio = "0.7.6"
 debug_print = "1.0.0"
 embedded-graphics = "0.8.1"
 embedded-graphics-simulator = "0.5.0"
+embedded-icon = { version = "0.0.1", features = ["32px"] }
 futures-util = "0.3.28"
 itertools = "0.11.0"
 profont = "0.7.0"

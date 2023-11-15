@@ -1,4 +1,8 @@
-use std::{collections::HashMap, error::Error, time::Instant};
+use std::{
+    collections::HashMap,
+    error::Error,
+    time::{Duration, Instant},
+};
 
 use embedded_graphics::{
     prelude::{OriginDimensions, Point, Size},
@@ -11,7 +15,7 @@ use crate::{
     display::{FILL_STYLE_FG, OUTLINE_STYLE_FG},
 };
 
-use super::super::bwr_display::BWRDisplay;
+use super::{super::bwr_display::BWRDisplay, IconComponent};
 
 use super::{DBusConsumer, DisplayAreaType, DisplayComponent};
 
@@ -19,21 +23,33 @@ pub struct BarDialog {
     pub name: &'static str,
     pub property: DBusPropertyAdress,
     pub screen: u8,
-    pub is_open: bool,
-    pub close_at: Box<Instant>,
-    old_values: Box<DBusValueMap>,
+    close_at: Instant,
+    old_values: Box<DBusValueMap>, // Values last drawn
+    _draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
 }
 
+const OPEN_TIME: Duration = Duration::from_secs(3);
 impl BarDialog {
-    pub fn new(name: &'static str, property: DBusPropertyAdress, screen: u8) -> Self {
+    pub fn new(
+        name: &'static str,
+        property: DBusPropertyAdress,
+        screen: u8,
+        draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>, // icons: Vec, // icons: Vec<ImageDrawable>,
+    ) -> Self {
         Self {
             name,
             property,
             screen,
-            is_open: false,
             old_values: Box::new(HashMap::new()),
-            close_at: Box::new(Instant::now()),
+            close_at: Instant::now(),
+            _draw_icon: draw_icon,
         }
+    }
+}
+
+impl IconComponent for BarDialog {
+    fn draw_icon(&self, target: &mut BWRDisplay, value: f64, center: Point) {
+        (self._draw_icon)(target, value, center);
     }
 }
 
@@ -51,18 +67,39 @@ impl DisplayComponent for BarDialog {
         Some(self)
     }
 
+    fn get_z_index(&self, values: &DBusValueMap) -> u32 {
+        let value = values.get(&self.property).expect(
+            format!(
+                "Can't get z-index, property {} does not exist in values",
+                self.property
+            )
+            .as_str(),
+        );
+
+        if let Some(val) = self.old_values.get(&self.property) {
+            if val != value {
+                return 100; //changed value
+            }
+        } else {
+            return 100; //new value
+        }
+
+        if Instant::now() > self.close_at {
+            let elapsed = Instant::now() - self.close_at;
+            if elapsed < OPEN_TIME {
+                return 90 - (elapsed.as_millis() / 100) as u32;
+            }
+        }
+
+        return 0;
+    }
+
     fn draw(
         &mut self,
         target: &mut BWRDisplay,
         values: Box<DBusValueMap>,
     ) -> Result<(), Box<dyn Error>> {
         self.old_values = values.clone();
-
-        let bar_width: u32 = 200;
-        let bar_height: u32 = 60;
-        let bar_x: i32 = ((target.size().width - bar_width) / 2) as i32;
-        let bar_y: i32 = ((target.size().height - bar_height) / 2) as i32;
-
         let value = values.get(&self.property).expect(
             format!(
                 "Can't draw component, property {} does not exist in values",
@@ -71,14 +108,33 @@ impl DisplayComponent for BarDialog {
             .as_str(),
         );
 
-        let percentage = match value {
+        if let Some(val) = self.old_values.get(&self.property) {
+            if val != value {
+                // Different value, we reset timeout and open
+                self.close_at = Instant::now().checked_add(OPEN_TIME).expect("huh?");
+            }
+        }
+
+        let bar_width: u32 = 175;
+        let bar_height: u32 = 60;
+        let bar_x: i32 = ((target.size().width - bar_width) / 2) as i32 + 15;
+        let bar_y: i32 = ((target.size().height - bar_height) / 2) as i32;
+
+        let float_value = match value {
             DBusValue::F64(val) => *val,
-            DBusValue::U64(val) => *val as f64,
-            DBusValue::I64(val) => *val as f64,
+            DBusValue::U64(val) => *val as f64 / 100.0,
+            DBusValue::I64(val) => *val as f64 / 100.0,
             _ => 69.0,
         };
 
-        let filled_width = (percentage / 100.0 * bar_width as f64) as u32;
+        let icon_center = Point {
+            x: bar_x - 25,
+            y: (target.size().height / 2) as i32,
+        };
+
+        self.draw_icon(target, float_value, icon_center);
+
+        let filled_width = (float_value * bar_width as f64) as u32;
 
         // Draw outline
         Rectangle::new(
@@ -103,10 +159,6 @@ impl DisplayComponent for BarDialog {
         .draw(target)?;
 
         return Ok(());
-    }
-
-    fn get_z_index(&self, _values: &DBusValueMap) -> u32 {
-        todo!()
     }
 }
 
