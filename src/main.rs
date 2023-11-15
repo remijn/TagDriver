@@ -218,10 +218,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let dbus_values = dbus_interface.values.clone();
 
+    let initial = dbus_interface.init(properties).await?; //.expect("Could not init DBus");
+
     tokio::spawn(async move {
-        dbus_interface.init(properties).await; //.expect("Could not init DBus");
         dbus_interface.run().await;
     });
+
+    for component in display_components.iter_mut() {
+        if let Some(dbus) = component.dbus_mut() {
+            dbus.set_initial(&initial);
+        }
+        // drop(component);
+    }
 
     // ----- Our Main Program Loop -----
     loop {

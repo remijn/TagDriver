@@ -9,6 +9,7 @@ use super::{super::dbus::*, bwr_display::BWRDisplay};
 pub trait DBusConsumer {
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool;
     fn wanted_dbus_values(&self) -> Vec<&DBusPropertyAdress>;
+    fn set_initial(&mut self, new_values: &DBusValueMap);
 }
 
 pub type NextRefresh = (Instant, RefreshType);
@@ -36,6 +37,7 @@ pub trait DisplayComponent {
     fn get_z_index(&self, values: &DBusValueMap) -> u32;
 
     fn dbus(&self) -> Option<&dyn DBusConsumer>;
+    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer>;
 }
 
 pub trait IconComponent {

@@ -160,6 +160,10 @@ impl DisplayComponent for BarDialog {
 
         return Ok(());
     }
+
+    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
+        Some(self)
+    }
 }
 
 impl DBusConsumer for BarDialog {
@@ -199,5 +203,9 @@ impl DBusConsumer for BarDialog {
         }
         // our key was not found
         return false;
+    }
+
+    fn set_initial(&mut self, new_values: &DBusValueMap) {
+        self.old_values = Box::new(new_values.clone());
     }
 }

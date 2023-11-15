@@ -63,10 +63,13 @@ impl DBusInterface {
         })
     }
 
-    pub async fn init(&mut self, properties: Vec<DBusPropertyAdress>) {
+    pub async fn init(
+        &mut self,
+        properties: Vec<DBusPropertyAdress>,
+    ) -> Result<DBusValueMap, &str> {
         if self.initialised {
-            print!("DBus init can only be called once!!!");
-            return;
+            // print!("DBus init can only be called once!!!");
+            return Err("DBus init can only be called once!!!");
         }
         self.initialised = true;
 
@@ -147,6 +150,7 @@ impl DBusInterface {
                 )
                 .expect("error");
         }
+        return Ok(values.clone());
     }
 
     pub async fn run(&mut self) {
