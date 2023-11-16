@@ -1,4 +1,8 @@
-use std::time::{Duration, Instant};
+use core::fmt;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 mod dbus;
 mod display;
@@ -17,15 +21,25 @@ use eink::{thread::start_eink_thread, EInkInterface};
 
 use embedded_canvas::Canvas;
 use embedded_graphics::{
-    geometry::{OriginDimensions, Point, Size},
+    geometry::{Angle, OriginDimensions, Point, Size},
     image::Image,
     prelude::DrawTarget,
-    primitives::{Primitive, Rectangle},
+    primitives::{Arc, Circle, Primitive, PrimitiveStyle, Rectangle},
     Drawable,
 };
-use embedded_icon::mdi::size48px::{
-    Arch, Brightness1, Brightness2, Brightness3, Brightness4, Brightness5, Brightness6,
-    Brightness7, VolumeHigh, VolumeLow, VolumeMedium, VolumeVariantOff,
+
+use embedded_icon::mdi::{
+    size32px::{
+        Battery, Battery10, Battery20, Battery30, Battery40, Battery50, Battery60, Battery70,
+        Battery80, Battery90, BatteryCharging10, BatteryCharging100, BatteryCharging20,
+        BatteryCharging30, BatteryCharging40, BatteryCharging50, BatteryCharging60,
+        BatteryCharging70, BatteryCharging80, BatteryCharging90, BatteryOffOutline, BatteryOutline,
+        PowerPlug,
+    },
+    size48px::{
+        Arch, Brightness1, Brightness2, Brightness3, Brightness4, Brightness5, Brightness6,
+        Brightness7, Cannabis, VolumeHigh, VolumeLow, VolumeMedium, VolumeVariantOff,
+    },
 };
 use embedded_icon::NewIcon;
 
@@ -37,9 +51,12 @@ use tokio::{sync::mpsc, time::sleep};
 
 use dbus::{BusType, DBusPropertyAdress, DBusProxyAdress};
 
-use crate::display::{
-    components::{simple_item::SimpleItem, state_item::StateItem},
-    OUTLINE_STYLE_FG,
+use crate::{
+    dbus::DBusValue,
+    display::{
+        components::{simple_item::SimpleItem, state_item::StateItem},
+        OUTLINE_STYLE_FG,
+    },
 };
 
 const SCREEN_COUNT: u8 = 2;
@@ -93,38 +110,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dbus::dbus_interface::DBusInterface::new(dbus_tx).expect("Could not connect to DBus");
 
     // PROXY Backlight power settings
-    let backlight_proxy: DBusProxyAdress = DBusProxyAdress::new(
+    static BACKLIGHT_PROXY: DBusProxyAdress = DBusProxyAdress::new(
         BusType::SESSION,
         "org.gnome.SettingsDaemon.Power",
         "/org/gnome/SettingsDaemon/Power",
     );
 
     // PROP display brightness
-    let brightness_property: DBusPropertyAdress = DBusPropertyAdress::new(
-        backlight_proxy,
+    static BRIGHTNESS_PROPERTY: DBusPropertyAdress = DBusPropertyAdress::new(
+        &BACKLIGHT_PROXY,
         "org.gnome.SettingsDaemon.Power.Screen",
         "Brightness",
     );
 
     // PROXY playerctld Media player
-    let player_proxy: DBusProxyAdress = DBusProxyAdress::new(
+    static PLAYER_PROXY: DBusProxyAdress = DBusProxyAdress::new(
         BusType::SESSION,
         "org.mpris.MediaPlayer2.playerctld",
         "/org/mpris/MediaPlayer2",
     );
     // PROP Volume
-    let player_volume_property: DBusPropertyAdress =
-        DBusPropertyAdress::new(player_proxy, "org.mpris.MediaPlayer2.Player", "Volume");
+    static PLAYER_VOLUME_PROPERTY: DBusPropertyAdress =
+        DBusPropertyAdress::new(&PLAYER_PROXY, "org.mpris.MediaPlayer2.Player", "Volume");
 
     // PROXY Battery status
-    let battery_proxy: DBusProxyAdress = DBusProxyAdress::new(
+    static BATTERY_PROXY: DBusProxyAdress = DBusProxyAdress::new(
         BusType::SYSTEM,
         "org.freedesktop.UPower",
         "/org/freedesktop/UPower/devices/battery_BAT1",
     );
-    // PROP Volume
-    let battery_level_property: DBusPropertyAdress =
-        DBusPropertyAdress::new(battery_proxy, "org.freedesktop.UPower.Device", "Percentage");
+    // PROP Battery Percentage
+    static BATTERY_LEVEL_PROPERTY: DBusPropertyAdress = DBusPropertyAdress::new(
+        &BATTERY_PROXY,
+        "org.freedesktop.UPower.Device",
+        "Percentage",
+    );
+
+    // PROP Battery State
+    static BATTERY_STATE_PROPERTY: DBusPropertyAdress =
+        DBusPropertyAdress::new(&BATTERY_PROXY, "org.freedesktop.UPower.Device", "State");
 
     // ////////////
     // Configure the components to be displayed
@@ -138,33 +162,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const BRIGHTNESS_ICON_COUNT: u32 = 6;
     let mut brightness_dialog = BarDialog::new(
         "brightness dialog",
-        brightness_property,
+        &BRIGHTNESS_PROPERTY,
         0,
         Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             // const color = BWRColor::Off;
             match (val * BRIGHTNESS_ICON_COUNT as f64).floor() as u32 {
-                6 => Image::with_center(&Brightness7::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                5 => Image::with_center(&Brightness6::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                4 => Image::with_center(&Brightness5::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                3 => Image::with_center(&Brightness4::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                2 => Image::with_center(&Brightness3::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                1 => Image::with_center(&Brightness2::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                0 | _ => Image::with_center(&Brightness1::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-            };
+                6 => Image::with_center(&Brightness7::new(ICON_COLOR), center).draw(target),
+                5 => Image::with_center(&Brightness6::new(ICON_COLOR), center).draw(target),
+                4 => Image::with_center(&Brightness5::new(ICON_COLOR), center).draw(target),
+                3 => Image::with_center(&Brightness4::new(ICON_COLOR), center).draw(target),
+                2 => Image::with_center(&Brightness3::new(ICON_COLOR), center).draw(target),
+                1 => Image::with_center(&Brightness2::new(ICON_COLOR), center).draw(target),
+                0 | _ => Image::with_center(&Brightness1::new(ICON_COLOR), center).draw(target),
+            }
+            .ok();
         }),
     );
     display_components.push(&mut brightness_dialog);
@@ -173,23 +184,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const PLAYER_VOLUME_ICON_COUNT: u32 = 3;
     let mut player_volume_dialog = BarDialog::new(
         "player volume dialog",
-        player_volume_property,
+        &PLAYER_VOLUME_PROPERTY,
         1,
         Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             match (val * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
-                3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                2 => Image::with_center(&VolumeMedium::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                1 => Image::with_center(&VolumeLow::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                0 | _ => Image::with_center(&VolumeVariantOff::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-            };
+                3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center).draw(target),
+                2 => Image::with_center(&VolumeMedium::new(ICON_COLOR), center).draw(target),
+                1 => Image::with_center(&VolumeLow::new(ICON_COLOR), center).draw(target),
+                0 | _ => {
+                    Image::with_center(&VolumeVariantOff::new(ICON_COLOR), center).draw(target)
+                }
+            }
+            .ok();
         }),
     );
     display_components.push(&mut player_volume_dialog);
@@ -205,27 +211,166 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     display_components.push(&mut arch_icon);
 
+    let mut weed_icon = SimpleItem::new(
+        "Weed Icon",
+        0,
+        Box::new(|target: &mut Canvas<BWRColor>, center| {
+            Image::with_center(&Cannabis::new(ICON_COLOR), center)
+                .draw(target)
+                .ok();
+        }),
+    );
+    display_components.push(&mut weed_icon);
+
+    enum BatteryState {
+        Unknown,
+        Charging,
+        Discharging,
+        Empty,
+        Full,
+    }
+    impl fmt::Debug for BatteryState {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(
+                f,
+                "{}",
+                match self {
+                    BatteryState::Unknown => "Unknown",
+                    BatteryState::Charging => "Charging",
+                    BatteryState::Discharging => "Discharging",
+                    BatteryState::Empty => "Empty",
+                    BatteryState::Full => "Full",
+                }
+            )
+        }
+    }
+
+    const BATTERY_ICON_COUNT: u32 = 10;
     let mut battery_icon = StateItem::new(
         "Battery Icon",
-        [battery_level_property].to_vec(),
+        [&BATTERY_LEVEL_PROPERTY, &BATTERY_STATE_PROPERTY].to_vec(),
         0,
-        Box::new(|target: &mut Canvas<BWRColor>, val, center| {
-            println!("Bat state {}", val);
-            match ((val / 100.0) * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
-                3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center)
+        Box::new(
+            |target: &mut Canvas<BWRColor>,
+             values: HashMap<DBusPropertyAdress, DBusValue>,
+             center: Point| {
+                let level = values.get(&BATTERY_LEVEL_PROPERTY).expect("no level");
+
+                let bat_percentage = match level {
+                    DBusValue::F64(val) => *val,
+                    DBusValue::U64(val) => *val as f64 / 100.0,
+                    DBusValue::I64(val) => *val as f64 / 100.0,
+                    _ => 0.0,
+                } / 100.0;
+
+                let state = values.get(&BATTERY_STATE_PROPERTY).expect("no state");
+                let bat_state = match state {
+                    DBusValue::U64(val) if *val == 0 => BatteryState::Unknown,
+                    DBusValue::U64(val) if *val == 1 => BatteryState::Charging,
+                    DBusValue::U64(val) if *val == 2 => BatteryState::Discharging,
+                    DBusValue::U64(val) if *val == 3 => BatteryState::Empty,
+                    DBusValue::U64(val) if *val == 4 => BatteryState::Full,
+                    _ => BatteryState::Unknown,
+                };
+
+                fn draw_arc(target: &mut Canvas<BWRColor>, value: f64, center: Point) {
+                    let circle = Circle::with_center(
+                        center,
+                        target.size().width.min(target.size().height) - 7,
+                    );
+                    Arc::from_circle(
+                        circle,
+                        Angle::from_degrees(-90.0),
+                        Angle::from_degrees((360.0 * value) as f32),
+                    )
+                    .into_styled(PrimitiveStyle::with_stroke(COLOR_FG, 6))
                     .draw(target)
-                    .ok(),
-                2 => Image::with_center(&VolumeMedium::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                1 => Image::with_center(&VolumeLow::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-                0 | _ => Image::with_center(&VolumeVariantOff::new(ICON_COLOR), center)
-                    .draw(target)
-                    .ok(),
-            };
-        }),
+                    .ok();
+                }
+
+                match bat_state {
+                    BatteryState::Unknown => {
+                        Image::with_center(&BatteryOffOutline::new(ICON_COLOR), center)
+                            .draw(target)
+                            .ok();
+                        return;
+                    }
+                    BatteryState::Full => {
+                        draw_arc(target, bat_percentage, center);
+                        Image::with_center(&PowerPlug::new(ICON_COLOR), center)
+                            .draw(target)
+                            .ok();
+                    }
+                    BatteryState::Discharging | BatteryState::Empty => {
+                        draw_arc(target, bat_percentage, center);
+                        match (bat_percentage * BATTERY_ICON_COUNT as f64).round() as u16 {
+                            10 => {
+                                Image::with_center(&Battery::new(ICON_COLOR), center).draw(target)
+                            }
+                            9 => {
+                                Image::with_center(&Battery90::new(ICON_COLOR), center).draw(target)
+                            }
+                            8 => {
+                                Image::with_center(&Battery80::new(ICON_COLOR), center).draw(target)
+                            }
+                            7 => {
+                                Image::with_center(&Battery70::new(ICON_COLOR), center).draw(target)
+                            }
+                            6 => {
+                                Image::with_center(&Battery60::new(ICON_COLOR), center).draw(target)
+                            }
+                            5 => {
+                                Image::with_center(&Battery50::new(ICON_COLOR), center).draw(target)
+                            }
+                            4 => {
+                                Image::with_center(&Battery40::new(ICON_COLOR), center).draw(target)
+                            }
+                            3 => {
+                                Image::with_center(&Battery30::new(ICON_COLOR), center).draw(target)
+                            }
+                            2 => {
+                                Image::with_center(&Battery20::new(ICON_COLOR), center).draw(target)
+                            }
+                            1 => {
+                                Image::with_center(&Battery10::new(ICON_COLOR), center).draw(target)
+                            }
+                            0 | _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
+                                .draw(target),
+                        }
+                        .ok();
+                    }
+                    BatteryState::Charging => {
+                        draw_arc(target, bat_percentage, center);
+                        let center = center + Size::new(1, 0);
+                        match (bat_percentage * BATTERY_ICON_COUNT as f64).round() as u16 {
+                            10 => Image::with_center(&BatteryCharging100::new(ICON_COLOR), center)
+                                .draw(target),
+                            9 => Image::with_center(&BatteryCharging90::new(ICON_COLOR), center)
+                                .draw(target),
+                            8 => Image::with_center(&BatteryCharging80::new(ICON_COLOR), center)
+                                .draw(target),
+                            7 => Image::with_center(&BatteryCharging70::new(ICON_COLOR), center)
+                                .draw(target),
+                            6 => Image::with_center(&BatteryCharging60::new(ICON_COLOR), center)
+                                .draw(target),
+                            5 => Image::with_center(&BatteryCharging50::new(ICON_COLOR), center)
+                                .draw(target),
+                            4 => Image::with_center(&BatteryCharging40::new(ICON_COLOR), center)
+                                .draw(target),
+                            3 => Image::with_center(&BatteryCharging30::new(ICON_COLOR), center)
+                                .draw(target),
+                            2 => Image::with_center(&BatteryCharging20::new(ICON_COLOR), center)
+                                .draw(target),
+                            1 => Image::with_center(&BatteryCharging10::new(ICON_COLOR), center)
+                                .draw(target),
+                            0 | _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
+                                .draw(target),
+                        }
+                        .ok();
+                    }
+                }
+            },
+        ),
     );
     display_components.push(&mut battery_icon);
 
@@ -233,10 +378,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let background_small = Box::new(Bmp::<BWRColor>::from_slice(background_small_bytes).unwrap());
 
     //Background screen 0
-    let mut background_0 = ImageBackground::new("Background 1", 0, background_small.clone());
+    // let mut background_0 = ImageBackground::new("Background 1", 0, background_small.clone());
     let mut background_1 = ImageBackground::new("Background 1", 1, background_small.clone());
 
-    display_components.push(&mut background_0);
+    // display_components.push(&mut background_0);
     display_components.push(&mut background_1);
     // ////////////
     // Get all the wanted dbus properties and their initial values
@@ -367,14 +512,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 let mut canvas = {
-                    let mut canvas = Canvas::<BWRColor>::new(size);
+                    let canvas = Canvas::<BWRColor>::new(size);
 
                     // draw a rectangle smaller than the canvas (with 1px)
-                    let canvas_rectangle = Rectangle::new(Point::zero(), size);
+                    // let canvas_rectangle = Rectangle::new(Point::zero(), size);
 
-                    let canvas_outline = canvas_rectangle.into_styled(OUTLINE_STYLE_FG);
+                    // let canvas_outline = canvas_rectangle.into_styled(OUTLINE_STYLE_FG);
                     // draw the canvas rectangle for debugging
-                    canvas_outline.draw(&mut canvas)?;
+                    // canvas_outline.draw(&mut canvas)?;
 
                     canvas
                 };
@@ -405,7 +550,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             canvases.reverse();
 
-            let mut pos = Point::zero();
+            let mut pos = Point::new(10, 10);
 
             for canvas in canvases {
                 match canvas.1 {

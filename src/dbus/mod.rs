@@ -83,7 +83,7 @@ pub type DBusValueMap = HashMap<DBusPropertyAdress, DBusValue>;
 
 #[derive(Hash, Eq, PartialEq, Clone)]
 pub struct DBusPropertyAdress {
-    pub proxy: DBusProxyAdress,
+    pub proxy: &'static DBusProxyAdress,
     pub interface: &'static str,
     pub property: &'static str,
 }
@@ -100,7 +100,7 @@ impl Display for DBusPropertyAdress {
 impl DBusPropertyAdress {
     /// Creates a new DBusProperty
     pub const fn new(
-        proxy: DBusProxyAdress,
+        proxy: &'static DBusProxyAdress,
         interface: &'static str,
         property: &'static str,
     ) -> DBusPropertyAdress {

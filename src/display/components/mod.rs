@@ -12,7 +12,7 @@ use super::{super::dbus::*, bwr_color::BWRColor};
 
 pub trait DBusConsumer {
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool;
-    fn wanted_dbus_values(&self) -> Vec<DBusPropertyAdress>;
+    fn wanted_dbus_values(&self) -> Vec<&'static DBusPropertyAdress>;
     fn set_initial(&mut self, new_values: &DBusValueMap);
 }
 

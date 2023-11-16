@@ -22,7 +22,7 @@ use super::{DBusConsumer, DisplayAreaType, DisplayComponent};
 
 pub struct BarDialog {
     pub name: &'static str,
-    pub property: DBusPropertyAdress,
+    pub property: &'static DBusPropertyAdress,
     pub screen: u8,
     close_at: Instant,
     old_values: Box<DBusValueMap>, // Values last drawn
@@ -33,7 +33,7 @@ const OPEN_TIME: Duration = Duration::from_secs(5);
 impl BarDialog {
     pub fn new(
         name: &'static str,
-        property: DBusPropertyAdress,
+        property: &'static DBusPropertyAdress,
         screen: u8,
         draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
     ) -> Self {
@@ -65,6 +65,9 @@ impl DisplayComponent for BarDialog {
         self.screen
     }
     fn dbus(&self) -> Option<&dyn DBusConsumer> {
+        Some(self)
+    }
+    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
         Some(self)
     }
 
@@ -162,10 +165,6 @@ impl DisplayComponent for BarDialog {
         return Ok(());
     }
 
-    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
-        Some(self)
-    }
-
     fn get_refresh_at(&self) -> Option<Instant> {
         if self.close_at > Instant::now() {
             return Some(self.close_at);
@@ -175,8 +174,8 @@ impl DisplayComponent for BarDialog {
 }
 
 impl DBusConsumer for BarDialog {
-    fn wanted_dbus_values(&self) -> Vec<DBusPropertyAdress> {
-        return [self.property.clone()].to_vec();
+    fn wanted_dbus_values(&self) -> Vec<&'static DBusPropertyAdress> {
+        return [self.property].to_vec();
     }
 
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool {

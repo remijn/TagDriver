@@ -12,20 +12,20 @@ use super::{DBusConsumer, DisplayComponent, IconComponent};
 
 pub struct StateItem {
     pub name: &'static str,
-    pub properties: Vec<DBusPropertyAdress>,
+    pub properties: Vec<&'static DBusPropertyAdress>,
     pub screen: u8,
     pub width: u32,
     pub height: u32,
     old_values: Box<DBusValueMap>, // Values last drawn
-    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
+    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, DBusValueMap, Point)>,
 }
 
 impl StateItem {
     pub fn new(
         name: &'static str,
-        properties: Vec<DBusPropertyAdress>,
+        properties: Vec<&'static DBusPropertyAdress>,
         screen: u8,
-        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
+        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, DBusValueMap, Point)>,
     ) -> Self {
         Self {
             name,
@@ -40,8 +40,8 @@ impl StateItem {
 }
 
 impl IconComponent for StateItem {
-    fn draw_icon(&self, target: &mut Canvas<BWRColor>, value: f64, center: Point) {
-        (self._draw_icon)(target, value, center);
+    fn draw_icon(&self, target: &mut Canvas<BWRColor>, _value: f64, center: Point) {
+        (self._draw_icon)(target, *self.old_values.clone(), center);
     }
 }
 
@@ -61,8 +61,10 @@ impl DisplayComponent for StateItem {
     fn draw(
         &mut self,
         target: &mut Canvas<BWRColor>,
-        _values: Box<crate::dbus::DBusValueMap>,
+        values: Box<crate::dbus::DBusValueMap>,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        self.old_values = values.clone();
+
         self.draw_icon(
             target,
             100.0,
@@ -86,39 +88,45 @@ impl DisplayComponent for StateItem {
 }
 
 impl DBusConsumer for StateItem {
-    fn wanted_dbus_values(&self) -> Vec<DBusPropertyAdress> {
+    fn wanted_dbus_values(&self) -> Vec<&'static DBusPropertyAdress> {
         return self.properties.clone();
     }
 
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool {
         for property in self.properties.clone() {
-            if new_values.contains_key(&property) {
-                let new_v = new_values.get(&property).expect("");
-                let old_v = self.old_values.get(&property);
+            if new_values.contains_key(property) {
+                let new_v = new_values.get(property).expect("");
+                let old_v = self.old_values.get(property);
 
                 match new_v {
                     DBusValue::F64(val) => {
                         if let Some(DBusValue::F64(old)) = old_v {
-                            return *old != *val; // return true if value is not the same
+                            if *old != *val {
+                                continue;
+                            }
                         } else {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
                     DBusValue::U64(val) => {
                         if let Some(DBusValue::U64(old)) = old_v {
-                            return *old != *val; // return true if value is not the same
+                            if *old != *val {
+                                continue;
+                            }
                         } else {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
                     DBusValue::I64(val) => {
                         if let Some(DBusValue::I64(old)) = old_v {
-                            return *old != *val; // return true if value is not the same
+                            if *old != *val {
+                                continue;
+                            }
                         } else {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
-                    _ => 69.0 as f64,
+                    _ => continue,
                 };
             }
         }

@@ -134,7 +134,7 @@ impl DBusInterface {
 
                         for (key, value) in h.changed_properties {
                             for prop in props.iter() {
-                                if prop.proxy == clone_proxy
+                                if prop.proxy == &clone_proxy
                                     && prop.interface == iface.as_str()
                                     && prop.property == key.as_str()
                                 {
