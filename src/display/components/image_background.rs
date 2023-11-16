@@ -1,3 +1,4 @@
+use embedded_canvas::Canvas;
 use embedded_graphics::{geometry::Point, image::Image, Drawable};
 use tinybmp::Bmp;
 
@@ -36,7 +37,7 @@ impl DisplayComponent for ImageBackground {
 
     fn draw(
         &mut self,
-        target: &mut crate::display::bwr_display::BWRDisplay,
+        target: &mut Canvas<BWRColor>,
         _values: Box<crate::dbus::DBusValueMap>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Image::new(self.image.as_ref(), Point::new(0, 0)).draw(target)?;

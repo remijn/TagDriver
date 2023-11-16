@@ -1,34 +1,36 @@
+use embedded_canvas::Canvas;
 use embedded_graphics::geometry::Point;
 
-use crate::display::bwr_display::BWRDisplay;
+use crate::display::bwr_color::BWRColor;
 
 use super::{DisplayComponent, IconComponent};
 
 pub struct SimpleItem {
     pub name: &'static str,
-    pub center: Point,
     pub screen: u8,
-    _draw_icon: Box<dyn Fn(&mut BWRDisplay, Point)>,
+    pub width: u32,
+    pub height: u32,
+    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, Point)>,
 }
 
 impl SimpleItem {
     pub fn new(
         name: &'static str,
-        center: Point,
         screen: u8,
-        draw_icon: Box<dyn Fn(&mut BWRDisplay, Point)>,
+        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, Point)>,
     ) -> Self {
         Self {
             name,
-            center,
             screen,
+            width: 50,
+            height: 50,
             _draw_icon: draw_icon,
         }
     }
 }
 
 impl IconComponent for SimpleItem {
-    fn draw_icon(&self, target: &mut BWRDisplay, _value: f64, center: Point) {
+    fn draw_icon(&self, target: &mut Canvas<BWRColor>, _value: f64, center: Point) {
         (self._draw_icon)(target, center);
     }
 }
@@ -39,7 +41,7 @@ impl DisplayComponent for SimpleItem {
     }
 
     fn get_type(&self) -> super::DisplayAreaType {
-        super::DisplayAreaType::Area
+        super::DisplayAreaType::Area(self.width, self.height)
     }
 
     fn get_name(&self) -> &str {
@@ -48,10 +50,14 @@ impl DisplayComponent for SimpleItem {
 
     fn draw(
         &mut self,
-        target: &mut crate::display::bwr_display::BWRDisplay,
+        target: &mut Canvas<BWRColor>,
         _values: Box<crate::dbus::DBusValueMap>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.draw_icon(target, 0.0, self.center);
+        self.draw_icon(
+            target,
+            0.0,
+            Point::new(self.width as i32 / 2, self.height as i32 / 2),
+        );
 
         return Ok(());
     }

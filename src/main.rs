@@ -15,7 +15,14 @@ use display::{
 };
 use eink::{thread::start_eink_thread, EInkInterface};
 
-use embedded_graphics::{geometry::Point, image::Image, prelude::DrawTarget, Drawable};
+use embedded_canvas::Canvas;
+use embedded_graphics::{
+    geometry::{OriginDimensions, Point, Size},
+    image::Image,
+    prelude::DrawTarget,
+    primitives::{Primitive, PrimitiveStyle, Rectangle},
+    Drawable,
+};
 use embedded_icon::mdi::size48px::{
     Arch, Brightness1, Brightness2, Brightness3, Brightness4, Brightness5, Brightness6,
     Brightness7, VolumeHigh, VolumeLow, VolumeMedium, VolumeVariantOff,
@@ -30,7 +37,10 @@ use tokio::{sync::mpsc, time::sleep};
 
 use dbus::{BusType, DBusPropertyAdress, DBusProxyAdress};
 
-use crate::display::components::{simple_item::SimpleItem, state_item::StateItem};
+use crate::display::{
+    components::{simple_item::SimpleItem, state_item::StateItem},
+    OUTLINE_STYLE_FG,
+};
 
 const SCREEN_COUNT: u8 = 2;
 
@@ -130,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "brightness dialog",
         brightness_property,
         0,
-        Box::new(|target: &mut BWRDisplay, val, center| {
+        Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             // const color = BWRColor::Off;
             match (val * BRIGHTNESS_ICON_COUNT as f64).floor() as u32 {
                 6 => Image::with_center(&Brightness7::new(ICON_COLOR), center)
@@ -165,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "player volume dialog",
         player_volume_property,
         1,
-        Box::new(|target: &mut BWRDisplay, val, center| {
+        Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             match (val * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
                 3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center)
                     .draw(target)
@@ -186,9 +196,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut arch_icon = SimpleItem::new(
         "Arch Icon",
-        Point::new(25, 25),
         0,
-        Box::new(|target: &mut BWRDisplay, center| {
+        Box::new(|target: &mut Canvas<BWRColor>, center| {
             Image::with_center(&Arch::new(ICON_COLOR), center)
                 .draw(target)
                 .ok();
@@ -198,10 +207,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut battery_icon = StateItem::new(
         "Battery Icon",
-        Point::new(60, 25),
         [battery_level_property].to_vec(),
         0,
-        Box::new(|target: &mut BWRDisplay, val, center| {
+        Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             match ((val / 100.0) * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
                 3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center)
                     .draw(target)
@@ -335,9 +343,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     (component, index)
                 })
                 .filter(|component| component.1 != 0)
-                .sorted_by(|a, b| Ord::cmp(&a.1, &b.1));
+                .sorted_by(|a, b| Ord::cmp(&b.1, &a.1));
 
-            // Draw the components to the screen's framebuffer
+            // Draw the components to a list of canvases
+            let mut canvases: Vec<(Canvas<BWRColor>, DisplayAreaType)> = Vec::new();
             for component in components {
                 println!(
                     "{} Render Z:{} {}",
@@ -345,7 +354,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     component.1,
                     component.0.get_name()
                 );
-                component.0.draw(display, values.clone())?;
+
+                let mut size = display.size();
+
+                match component.0.get_type() {
+                    DisplayAreaType::Area(width, height) => {
+                        size = Size::new(width, height);
+                    }
+                    _ => {}
+                }
+
+                let mut canvas = {
+                    let mut canvas = Canvas::<BWRColor>::new(size);
+
+                    // draw a rectangle smaller than the canvas (with 1px)
+                    let canvas_rectangle = Rectangle::new(Point::zero(), size);
+
+                    let canvas_outline = canvas_rectangle.into_styled(OUTLINE_STYLE_FG);
+                    // draw the canvas rectangle for debugging
+                    canvas_outline.draw(&mut canvas)?;
+
+                    canvas
+                };
+
+                component.0.draw(&mut canvas, values.clone())?;
 
                 let refresh = component.0.get_refresh_at();
                 if refresh.is_some()
@@ -358,6 +390,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         (screen_refresh_after[i].expect("") - Instant::now()).as_millis()
                     );
                 }
+                canvases.push((canvas, component.0.get_type()));
 
                 match component.0.get_type() {
                     DisplayAreaType::Dialog => {
@@ -372,6 +405,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     // DisplayAreaType::Fullscreen => break,
                     _ => continue,
+                }
+            }
+
+            canvases.reverse();
+
+            let mut pos = Point::zero();
+
+            for canvas in canvases {
+                match canvas.1 {
+                    DisplayAreaType::Fullscreen | DisplayAreaType::Dialog => canvas
+                        .0
+                        .place_at(Point::zero())
+                        .draw(display)
+                        .expect("Could not draw canvas to display"),
+                    DisplayAreaType::Area(width, _height) => {
+                        canvas
+                            .0
+                            .place_at(pos)
+                            .draw(display)
+                            .expect("Could not draw canvas to display");
+
+                        pos += Size::new(width, 0);
+                    }
                 }
             }
 

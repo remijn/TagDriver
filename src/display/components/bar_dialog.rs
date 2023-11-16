@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use embedded_canvas::Canvas;
 use embedded_graphics::{
     prelude::{OriginDimensions, Point, Size},
     primitives::{Primitive, Rectangle},
@@ -12,10 +13,10 @@ use embedded_graphics::{
 
 use crate::{
     dbus::{DBusPropertyAdress, DBusValue, DBusValueMap},
-    display::{FILL_STYLE_FG, OUTLINE_STYLE_FG},
+    display::{bwr_color::BWRColor, FILL_STYLE_FG, OUTLINE_STYLE_FG},
 };
 
-use super::{super::bwr_display::BWRDisplay, IconComponent};
+use super::IconComponent;
 
 use super::{DBusConsumer, DisplayAreaType, DisplayComponent};
 
@@ -25,7 +26,7 @@ pub struct BarDialog {
     pub screen: u8,
     close_at: Instant,
     old_values: Box<DBusValueMap>, // Values last drawn
-    _draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
+    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
 }
 
 const OPEN_TIME: Duration = Duration::from_secs(5);
@@ -34,7 +35,7 @@ impl BarDialog {
         name: &'static str,
         property: DBusPropertyAdress,
         screen: u8,
-        draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
+        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
     ) -> Self {
         Self {
             name,
@@ -48,7 +49,7 @@ impl BarDialog {
 }
 
 impl IconComponent for BarDialog {
-    fn draw_icon(&self, target: &mut BWRDisplay, value: f64, center: Point) {
+    fn draw_icon(&self, target: &mut Canvas<BWRColor>, value: f64, center: Point) {
         (self._draw_icon)(target, value, center);
     }
 }
@@ -96,7 +97,7 @@ impl DisplayComponent for BarDialog {
 
     fn draw(
         &mut self,
-        target: &mut BWRDisplay,
+        target: &mut Canvas<BWRColor>,
         values: Box<DBusValueMap>,
     ) -> Result<(), Box<dyn Error>> {
         let value = values.get(&self.property).expect(
@@ -115,9 +116,9 @@ impl DisplayComponent for BarDialog {
         }
         self.old_values = values.clone();
 
-        let bar_width: u32 = 175;
+        let bar_width: u32 = 155;
         let bar_height: u32 = 60;
-        let bar_x: i32 = ((target.size().width - bar_width) / 2) as i32 + 15;
+        let bar_x: i32 = ((target.size().width - bar_width) / 2) as i32 + 30;
         let bar_y: i32 = ((target.size().height - bar_height) / 2) as i32;
 
         let float_value = match value {
@@ -128,7 +129,7 @@ impl DisplayComponent for BarDialog {
         };
 
         let icon_center = Point {
-            x: bar_x - 25,
+            x: bar_x - 40,
             y: (target.size().height / 2) as i32,
         };
 

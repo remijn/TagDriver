@@ -1,35 +1,37 @@
 use std::collections::HashMap;
 
+use embedded_canvas::Canvas;
 use embedded_graphics::geometry::Point;
 
 use crate::{
     dbus::{DBusPropertyAdress, DBusValue, DBusValueMap},
-    display::bwr_display::BWRDisplay,
+    display::bwr_color::BWRColor,
 };
 
 use super::{DBusConsumer, DisplayComponent, IconComponent};
 
 pub struct StateItem {
     pub name: &'static str,
-    pub center: Point,
     pub properties: Vec<DBusPropertyAdress>,
     pub screen: u8,
+    pub width: u32,
+    pub height: u32,
     old_values: Box<DBusValueMap>, // Values last drawn
-    _draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
+    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
 }
 
 impl StateItem {
     pub fn new(
         name: &'static str,
-        center: Point,
         properties: Vec<DBusPropertyAdress>,
         screen: u8,
-        draw_icon: Box<dyn Fn(&mut BWRDisplay, f64, Point)>,
+        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
     ) -> Self {
         Self {
             name,
-            center,
             screen,
+            width: 50,
+            height: 50,
             old_values: Box::new(HashMap::new()),
             properties,
             _draw_icon: draw_icon,
@@ -38,7 +40,7 @@ impl StateItem {
 }
 
 impl IconComponent for StateItem {
-    fn draw_icon(&self, target: &mut BWRDisplay, value: f64, center: Point) {
+    fn draw_icon(&self, target: &mut Canvas<BWRColor>, value: f64, center: Point) {
         (self._draw_icon)(target, value, center);
     }
 }
@@ -49,7 +51,7 @@ impl DisplayComponent for StateItem {
     }
 
     fn get_type(&self) -> super::DisplayAreaType {
-        super::DisplayAreaType::Area
+        super::DisplayAreaType::Area(self.width, self.height)
     }
 
     fn get_name(&self) -> &str {
@@ -58,10 +60,14 @@ impl DisplayComponent for StateItem {
 
     fn draw(
         &mut self,
-        target: &mut crate::display::bwr_display::BWRDisplay,
+        target: &mut Canvas<BWRColor>,
         _values: Box<crate::dbus::DBusValueMap>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.draw_icon(target, 0.0, self.center);
+        self.draw_icon(
+            target,
+            0.0,
+            Point::new(self.width as i32 / 2, self.height as i32 / 2),
+        );
 
         return Ok(());
     }

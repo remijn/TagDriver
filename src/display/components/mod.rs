@@ -5,9 +5,10 @@ pub mod image_background;
 pub mod simple_item;
 pub mod state_item;
 
+use embedded_canvas::Canvas;
 use embedded_graphics::prelude::Point;
 
-use super::{super::dbus::*, bwr_display::BWRDisplay};
+use super::{super::dbus::*, bwr_color::BWRColor};
 
 pub trait DBusConsumer {
     fn needs_refresh(&self, new_values: &DBusValueMap) -> bool;
@@ -24,8 +25,8 @@ pub enum RefreshType {
 
 #[derive(PartialEq, Eq)]
 pub enum DisplayAreaType {
-    Area,       // item contained in area, i.e. icon for bluetooth
-    Fullscreen, // Fullscreen thing, large clock or image, stays open
+    Area(u32, u32), // item contained in area, i.e. icon for bluetooth
+    Fullscreen,     // Fullscreen thing, large clock or image, stays open
     Dialog, // Fullscreen dialog that shows on change, (volume or brightness popup, notifications maybe), and dissapears after
 }
 pub trait DisplayComponent {
@@ -34,7 +35,7 @@ pub trait DisplayComponent {
     fn get_name(&self) -> &str;
     fn draw(
         &mut self,
-        target: &mut BWRDisplay,
+        target: &mut Canvas<BWRColor>,
         values: Box<DBusValueMap>,
     ) -> Result<(), Box<dyn Error>>;
     fn get_z_index(&self, values: &DBusValueMap) -> u32;
@@ -51,5 +52,5 @@ pub trait DisplayComponent {
 }
 
 pub trait IconComponent {
-    fn draw_icon(&self, target: &mut BWRDisplay, value: f64, center: Point);
+    fn draw_icon(&self, target: &mut Canvas<BWRColor>, value: f64, center: Point);
 }
