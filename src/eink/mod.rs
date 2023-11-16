@@ -62,7 +62,11 @@ impl EInkInterface {
 
     #[allow(dead_code)]
     pub(crate) async fn fast(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
-        println!("{} Fast display on screen {}", log::SCREEN, self._port);
+        println!(
+            "{} Fast display on screen {}",
+            log::SCREEN,
+            self._port.split("_").last().or(Some(self._port)).expect("")
+        );
         self.send_command(EInkCommand::SHOW {
             buffer,
             x: 0,

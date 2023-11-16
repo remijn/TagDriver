@@ -20,7 +20,7 @@ use embedded_graphics::{
     geometry::{OriginDimensions, Point, Size},
     image::Image,
     prelude::DrawTarget,
-    primitives::{Primitive, PrimitiveStyle, Rectangle},
+    primitives::{Primitive, Rectangle},
     Drawable,
 };
 use embedded_icon::mdi::size48px::{
@@ -210,6 +210,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         [battery_level_property].to_vec(),
         0,
         Box::new(|target: &mut Canvas<BWRColor>, val, center| {
+            println!("Bat state {}", val);
             match ((val / 100.0) * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
                 3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center)
                     .draw(target)
@@ -266,10 +267,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             dbus.set_initial(&initial);
         }
     }
-
     // ////////////
     // Start the dbus thread
     // ////////////
+
+    println!("{}", log::WELCOME);
 
     tokio::spawn(async move {
         dbus_interface.run().await;
@@ -349,10 +351,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut canvases: Vec<(Canvas<BWRColor>, DisplayAreaType)> = Vec::new();
             for component in components {
                 println!(
-                    "{} Render Z:{} {}",
+                    "{} Render {} Z:{}",
                     log::RENDER,
+                    component.0.get_name(),
                     component.1,
-                    component.0.get_name()
                 );
 
                 let mut size = display.size();
@@ -394,13 +396,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 match component.0.get_type() {
                     DisplayAreaType::Dialog => {
-                        screen_refresh_after[i] = component.0.get_refresh_at();
-                        if let Some(time) = screen_refresh_after[i] {
-                            println!(
-                                "⏳️ Screen refresh after {}ms",
-                                (time - Instant::now()).as_millis()
-                            );
-                        }
                         break;
                     }
                     // DisplayAreaType::Fullscreen => break,

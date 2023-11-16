@@ -65,7 +65,7 @@ impl DisplayComponent for StateItem {
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.draw_icon(
             target,
-            0.0,
+            100.0,
             Point::new(self.width as i32 / 2, self.height as i32 / 2),
         );
 

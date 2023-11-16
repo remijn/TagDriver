@@ -32,7 +32,7 @@
                 "type": "lldb",
                 "sourceLanguages": ["rust"],
                 "request": "launch",
-                "program": "${workspaceFolder}/target/debug/tag_daemon",
+                "program": "${workspaceFolder}/target/debug/tag_driver",
                 "preLaunchTask": "Cargo Build"
                 // "args": ["-arg1", "-arg2"]
             }
