@@ -10,8 +10,8 @@ use self::bwr_color::BWRColor;
 use embedded_graphics::{mono_font::MonoTextStyle, primitives::*};
 use profont::PROFONT_24_POINT;
 
-pub const COLOR_BG: BWRColor = BWRColor::On;
-pub const COLOR_FG: BWRColor = BWRColor::Off;
+pub const COLOR_BG: BWRColor = BWRColor::Off;
+pub const COLOR_FG: BWRColor = BWRColor::On;
 
 pub const STROKE_WIDTH: u32 = 2;
 
