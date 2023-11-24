@@ -18,7 +18,7 @@ use stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged;
 
 use crate::log;
 
-use super::{BusType, DBusPropertyAdress, DBusProxyAdress, DBusUpdate, DBusValue, DBusValueMap};
+use super::{BusType, DBusPropertyAdress, DBusUpdate, DBusValue, DBusValueMap};
 
 #[allow(dead_code)]
 fn print_refarg(value: &dyn RefArg) {
@@ -67,7 +67,7 @@ impl DBusInterface {
 
     pub async fn init(
         &mut self,
-        properties: Vec<DBusPropertyAdress>,
+        properties: Vec<&'static DBusPropertyAdress>,
     ) -> Result<DBusValueMap, &str> {
         if self.initialised {
             // print!("DBus init can only be called once!!!");
@@ -90,24 +90,25 @@ impl DBusInterface {
 
             let clone_tx = self.tx.clone();
 
-            let clone_proxy: DBusProxyAdress = proxy.clone();
+            // let clone_proxy: DBusProxyAdress = proxy.clone();
 
-            let connection = match clone_proxy.bus {
+            let connection = match proxy.bus {
                 BusType::SESSION => &self.session_conn,
                 BusType::SYSTEM => &self.system_conn,
             };
 
-            let conn_proxy =
-                connection.with_proxy(clone_proxy.dest, clone_proxy.path, Duration::from_secs(2));
+            let conn_proxy = connection.with_proxy(proxy.dest, proxy.path, Duration::from_secs(2));
 
             for property in proxy_properties {
                 // Get initial value
 
-                let res = conn_proxy
-                    .get::<Box<dyn RefArg>>(property.interface, &property.property)
-                    .expect("Property not available");
+                let res = conn_proxy.get::<Box<dyn RefArg>>(property.interface, &property.property);
 
-                values.insert((*property).clone(), DBusValue::from_ref_arg(&res));
+                if let Ok(result) = res {
+                    values.insert(property, DBusValue::from_ref_arg(&result));
+                } else {
+                    println!("{} Unable to get property {}", log::ERROR, property);
+                }
 
                 // conn_proxy.method_call(
                 //     m,
@@ -119,14 +120,13 @@ impl DBusInterface {
 
             let props = properties.clone();
 
+            println!("Match proxy {:?}", proxy);
+
             conn_proxy
                 .match_signal(
                     move |h: PropertiesPropertiesChanged, _: &Connection, _: &Message| {
                         // let values = self.values.lock().expect("Could not lock values mutex");
-                        // print!(
-                        //     "PropChange CB for {} {} changed: ",
-                        //     clone_proxy.dest, h.interface_name
-                        // );
+
                         // let iface: String = h.interface_name.as_str().clone();
                         let iface = h.interface_name;
 
@@ -134,17 +134,18 @@ impl DBusInterface {
 
                         for (key, value) in h.changed_properties {
                             for prop in props.iter() {
-                                if prop.proxy == &clone_proxy
+                                if prop.proxy == &proxy
                                     && prop.interface == iface.as_str()
                                     && prop.property == key.as_str()
                                 {
-                                    updates.push(((*prop).clone(), Some(value.0.box_clone())));
+                                    updates.push((prop, Some(value.0.box_clone())));
                                 }
                             }
 
                             // print_refarg(&value.1.expect("huh?"));
                         }
                         if updates.len() > 0 {
+                            println!("{} {} Values {:?} ", log::DBUS, iface, updates);
                             clone_tx.try_send(updates).expect("Could not send");
                         }
                         true
@@ -169,8 +170,12 @@ impl DBusInterface {
 
         loop {
             self.session_conn
-                .process(Duration::from_millis(200))
-                .expect("Could not process dbus messages");
+                .process(Duration::from_millis(10))
+                .expect("Could not process session dbus messages");
+
+            self.system_conn
+                .process(Duration::from_millis(10))
+                .expect("Could not process system dbus messages");
 
             while let Ok(dbus_values) = self.rx.try_recv() {
                 if dbus_values.len() == 0 {
@@ -182,7 +187,7 @@ impl DBusInterface {
                     match values.get(&key) {
                         Some(_val) if new_value_option.is_some() => {
                             values.insert(
-                                DBusPropertyAdress::from(key),
+                                key,
                                 DBusValue::from_ref_arg(&new_value_option.expect("!")),
                             );
                             updated = true;

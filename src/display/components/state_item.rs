@@ -103,6 +103,8 @@ impl DBusConsumer for StateItem {
                         if let Some(DBusValue::F64(old)) = old_v {
                             if *old != *val {
                                 continue;
+                            } else {
+                                return true;
                             }
                         } else {
                             return true; // only new value, no old value, we should refresh
@@ -112,6 +114,8 @@ impl DBusConsumer for StateItem {
                         if let Some(DBusValue::U64(old)) = old_v {
                             if *old != *val {
                                 continue;
+                            } else {
+                                return true;
                             }
                         } else {
                             return true; // only new value, no old value, we should refresh
@@ -121,6 +125,8 @@ impl DBusConsumer for StateItem {
                         if let Some(DBusValue::I64(old)) = old_v {
                             if *old != *val {
                                 continue;
+                            } else {
+                                return true;
                             }
                         } else {
                             return true; // only new value, no old value, we should refresh

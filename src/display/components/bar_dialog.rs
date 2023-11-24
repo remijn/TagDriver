@@ -14,6 +14,7 @@ use embedded_graphics::{
 use crate::{
     dbus::{DBusPropertyAdress, DBusValue, DBusValueMap},
     display::{bwr_color::BWRColor, FILL_STYLE_FG, OUTLINE_STYLE_FG},
+    log,
 };
 
 use super::IconComponent;
@@ -72,7 +73,18 @@ impl DisplayComponent for BarDialog {
     }
 
     fn get_z_index(&self, values: &DBusValueMap) -> u32 {
-        let value = values.get(&self.property).expect(
+        let res = values.get(&self.property);
+
+        if let None = res {
+            println!(
+                "{} Can't get z-index, property {} does not exist in values",
+                log::ERROR,
+                self.property
+            );
+            return 0;
+        }
+
+        let value = res.expect(
             format!(
                 "Can't get z-index, property {} does not exist in values",
                 self.property
@@ -103,7 +115,16 @@ impl DisplayComponent for BarDialog {
         target: &mut Canvas<BWRColor>,
         values: Box<DBusValueMap>,
     ) -> Result<(), Box<dyn Error>> {
-        let value = values.get(&self.property).expect(
+        let res = values.get(&self.property);
+        if let None = res {
+            println!(
+                "{} Can't get z-index, property {} does not exist in values",
+                log::ERROR,
+                self.property
+            );
+            return Ok(());
+        }
+        let value = res.expect(
             format!(
                 "Can't draw component, property {} does not exist in values",
                 self.property

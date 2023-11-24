@@ -44,14 +44,22 @@ pub fn start_eink_thread(
             .expect("Could not spawn thread");
     });
 
+    let mut h = height;
+
+    if h % 8 != 0 {
+        h += 8 - height % 8;
+    }
+
     return Ok(EInkInterface {
         rx,
         tx,
         state: EInkResponse::OK,
         width,
         height,
+        buffer_height: h,
         _port: port_str,
         flip,
+        black_border: false,
     });
 }
 

@@ -1,41 +1,38 @@
 use embedded_canvas::Canvas;
-use embedded_graphics::geometry::Point;
+use embedded_graphics::{geometry::Point, image::Image, Drawable};
+use embedded_icon::{EmbeddedIcon, Icon};
 
 use crate::display::bwr_color::BWRColor;
 
 use super::{DisplayComponent, IconComponent};
 
-pub struct SimpleItem {
+pub struct SimpleItem<T: EmbeddedIcon> {
     pub name: &'static str,
     pub screen: u8,
     pub width: u32,
     pub height: u32,
-    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, Point)>,
+    pub icon: Icon<BWRColor, T>,
 }
 
-impl SimpleItem {
-    pub fn new(
-        name: &'static str,
-        screen: u8,
-        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, Point)>,
-    ) -> Self {
+impl<T: EmbeddedIcon> SimpleItem<T> {
+    pub fn new(name: &'static str, screen: u8, icon: Icon<BWRColor, T>) -> Self {
         Self {
             name,
             screen,
             width: 50,
             height: 50,
-            _draw_icon: draw_icon,
+            icon,
         }
     }
 }
 
-impl IconComponent for SimpleItem {
+impl<T: EmbeddedIcon> IconComponent for SimpleItem<T> {
     fn draw_icon(&self, target: &mut Canvas<BWRColor>, _value: f64, center: Point) {
-        (self._draw_icon)(target, center);
+        Image::with_center(&self.icon, center).draw(target).ok();
     }
 }
 
-impl DisplayComponent for SimpleItem {
+impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
     fn get_screen(&self) -> u8 {
         self.screen
     }

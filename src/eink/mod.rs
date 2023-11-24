@@ -10,11 +10,13 @@ pub mod uart_interface;
 pub struct EInkInterface {
     pub width: u32,
     pub height: u32,
+    pub buffer_height: u32,
     pub rx: Receiver<EInkResponse>,
     pub tx: Sender<EInkCommand>,
     pub state: EInkResponse,
     pub _port: &'static str,
     pub flip: bool,
+    pub black_border: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -47,14 +49,19 @@ pub enum EInkCommand {
 impl EInkInterface {
     #[allow(dead_code)]
     pub(crate) async fn full(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
+        println!(
+            "{} Full display on screen {}",
+            log::SCREEN,
+            self._port.split("_").last().or(Some(self._port)).expect("")
+        );
         self.send_command(EInkCommand::SHOW {
             buffer,
             x: 0,
             y: 0,
             width: self.width,
-            height: self.height,
+            height: self.buffer_height,
             with_red: false,
-            black_border: false,
+            black_border: self.black_border,
             full_refresh: true,
         })
         .await
@@ -72,9 +79,9 @@ impl EInkInterface {
             x: 0,
             y: 0,
             width: self.width,
-            height: self.height,
+            height: self.buffer_height,
             with_red: false,
-            black_border: false,
+            black_border: self.black_border,
             full_refresh: false,
         })
         .await
@@ -96,7 +103,7 @@ impl EInkInterface {
             width,
             height,
             with_red: false,
-            black_border: false,
+            black_border: self.black_border,
             full_refresh: false,
         })
         .await

@@ -1,8 +1,5 @@
 use core::fmt;
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 mod dbus;
 mod display;
@@ -24,7 +21,7 @@ use embedded_graphics::{
     geometry::{Angle, OriginDimensions, Point, Size},
     image::Image,
     prelude::DrawTarget,
-    primitives::{Arc, Circle, Primitive, PrimitiveStyle, Rectangle},
+    primitives::{Arc, Circle, Primitive, PrimitiveStyle},
     Drawable,
 };
 
@@ -52,14 +49,11 @@ use tokio::{sync::mpsc, time::sleep};
 use dbus::{BusType, DBusPropertyAdress, DBusProxyAdress};
 
 use crate::{
-    dbus::DBusValue,
-    display::{
-        components::{simple_item::SimpleItem, state_item::StateItem},
-        OUTLINE_STYLE_FG,
-    },
+    dbus::{DBusValue, DBusValueMap},
+    display::components::{simple_item::SimpleItem, state_item::StateItem},
 };
 
-const SCREEN_COUNT: u8 = 2;
+const SCREEN_COUNT: u8 = 3;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -71,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if00",
         912600,
         250,
-        128,
+        122,
         false,
     )?;
 
@@ -79,22 +73,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if04",
         912600,
         250,
-        128,
+        122,
         true,
     )?;
-    // let interface3: EInkInterface = start_eink_thread(
-    //     "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if02",
-    //     912600,
-    //     300,
-    //     400,
-    //     false,
-    // )?;
+    let interface3: EInkInterface = start_eink_thread(
+        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if02",
+        912600,
+        300,
+        400,
+        false,
+    )?;
 
     // ////////////
     // Initialise the Display and rendering code for each interface
     // ////////////
     let mut screens: [(BWRDisplay, EInkInterface); SCREEN_COUNT as usize] =
-        [interface1, interface2].map(|interface| {
+        [interface1, interface2, interface3].map(|interface| {
             (
                 BWRDisplay::new(interface.width, interface.height, interface.flip),
                 interface,
@@ -200,25 +194,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     display_components.push(&mut player_volume_dialog);
 
-    let mut arch_icon = SimpleItem::new(
-        "Arch Icon",
-        0,
-        Box::new(|target: &mut Canvas<BWRColor>, center| {
-            Image::with_center(&Arch::new(ICON_COLOR), center)
-                .draw(target)
-                .ok();
-        }),
-    );
+    let mut arch_icon = SimpleItem::new("Arch Icon", 0, Arch::new(ICON_COLOR));
     display_components.push(&mut arch_icon);
 
     let mut weed_icon = SimpleItem::new(
         "Weed Icon",
         0,
-        Box::new(|target: &mut Canvas<BWRColor>, center| {
-            Image::with_center(&Cannabis::new(ICON_COLOR), center)
-                .draw(target)
-                .ok();
-        }),
+        Cannabis::new(ICON_COLOR),
+        // Box::new(|target: &mut Canvas<BWRColor>, center| {
+        //     Image::with_center(&Cannabis::new(ICON_COLOR), center)
+        //         .draw(target)
+        //         .ok();
+        // }),
     );
     display_components.push(&mut weed_icon);
 
@@ -251,9 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         [&BATTERY_LEVEL_PROPERTY, &BATTERY_STATE_PROPERTY].to_vec(),
         0,
         Box::new(
-            |target: &mut Canvas<BWRColor>,
-             values: HashMap<DBusPropertyAdress, DBusValue>,
-             center: Point| {
+            |target: &mut Canvas<BWRColor>, values: DBusValueMap, center: Point| {
                 let level = values.get(&BATTERY_LEVEL_PROPERTY).expect("no level");
 
                 let bat_percentage = match level {
@@ -377,28 +362,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let background_small_bytes = include_bytes!("../resources/logo250.bmp");
     let background_small = Box::new(Bmp::<BWRColor>::from_slice(background_small_bytes).unwrap());
 
+    let background_large_bytes = include_bytes!("../resources/logo400.bmp");
+    let background_large = Box::new(Bmp::<BWRColor>::from_slice(background_large_bytes).unwrap());
+
     //Background screen 0
     // let mut background_0 = ImageBackground::new("Background 1", 0, background_small.clone());
     let mut background_1 = ImageBackground::new("Background 1", 1, background_small.clone());
+    let mut background_2 = ImageBackground::new("Background 2", 2, background_large.clone());
 
     // display_components.push(&mut background_0);
     display_components.push(&mut background_1);
+    display_components.push(&mut background_2);
     // ////////////
     // Get all the wanted dbus properties and their initial values
     // ////////////
 
-    let mut properties: Vec<DBusPropertyAdress> = Vec::new();
+    let mut properties: Vec<&DBusPropertyAdress> = Vec::new();
     // Get all the wanted properties
     let iter = display_components.iter();
     for component in iter {
         if let Some(dbus) = component.dbus() {
-            properties.append(
-                &mut dbus
-                    .wanted_dbus_values()
-                    .iter()
-                    .map(|v| (*v).clone())
-                    .collect_vec(),
-            );
+            let mut values = dbus.wanted_dbus_values();
+            properties.append(&mut values);
         }
     }
 
@@ -478,6 +463,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // clear the screen
             display.clear(COLOR_BG)?;
+            interface.black_border = COLOR_BG == BWRColor::On;
 
             let values = Box::new(dbus_values.lock().await.clone());
 
@@ -576,7 +562,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let (black, _red4) = display.get_fixed_buffer();
 
             // Stupid hack to force full-refresh the right screen
-            if interface.flip {
+            if !interface._port.ends_with("if00") {
                 interface
                     .full(black)
                     .await

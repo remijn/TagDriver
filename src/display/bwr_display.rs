@@ -40,7 +40,7 @@ impl BWRDisplay {
         red_buffer.resize((self.width * (self.buffer_height / 8)) as usize, 0);
 
         let mut i = 0;
-        while i < self.width * self.height / 8 {
+        while i < self.width * self.buffer_height / 8 {
             //Iterate through new buff, I is bytes
             let mut black_byte: u8 = 0b0000_0000;
             let mut red_byte: u8 = 0b0000_0000;
@@ -59,7 +59,7 @@ impl BWRDisplay {
 
                 j += 1;
             }
-            black_buffer[i as usize] = (black_byte) ^ 0xFF; // Toggle all the bits, to invert the colors
+            black_buffer[i as usize] = black_byte;
             red_buffer[i as usize] = red_byte;
             i += 1;
         }
@@ -111,8 +111,12 @@ impl DrawTarget for BWRDisplay {
             {
                 let index: u32;
                 if self.flip {
+                    // let extra_y: i32 = (self.buffer_height - self.height) as i32;
+
+                    let extra_y: i32 = 0;
+
                     let x = coord.x * -1 + (self.width as i32 - 1);
-                    let y = coord.y * -1 + (self.height as i32 - 1);
+                    let y = coord.y * -1 + (self.height as i32 - 1) + extra_y;
                     index = x as u32 * self.buffer_height as u32 + y as u32;
                 } else {
                     index = coord.x as u32 * self.buffer_height as u32 + coord.y as u32;

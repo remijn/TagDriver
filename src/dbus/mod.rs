@@ -19,7 +19,7 @@ pub trait RefArgEq: RefArg + Eq + PartialEq + Clone {
 // Implement RefArgEq for any type that implements RefArg
 impl<T: RefArg + Eq + PartialEq + Clone> RefArgEq for T {}
 
-type DBusUpdate = (DBusPropertyAdress, Option<Box<dyn RefArg>>);
+type DBusUpdate = (&'static DBusPropertyAdress, Option<Box<dyn RefArg>>);
 
 #[allow(dead_code)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -79,9 +79,9 @@ impl DBusValue {
     }
 }
 
-pub type DBusValueMap = HashMap<DBusPropertyAdress, DBusValue>;
+pub type DBusValueMap = HashMap<&'static DBusPropertyAdress, DBusValue>;
 
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct DBusPropertyAdress {
     pub proxy: &'static DBusProxyAdress,
     pub interface: &'static str,
