@@ -15,7 +15,6 @@ pub struct EInkInterface {
     pub tx: Sender<EInkCommand>,
     pub state: EInkResponse,
     pub _port: &'static str,
-    pub flip: bool,
     pub black_border: bool,
 }
 

@@ -1,6 +1,9 @@
+use crate::DisplayRotation;
+
 use super::bwr_color::BWRColor;
 
 use embedded_graphics::prelude::*;
+
 pub struct BWRDisplay {
     /// The framebuffer with a single byte per pixel
     framebuffer: Vec<u8>,
@@ -8,12 +11,16 @@ pub struct BWRDisplay {
     height: u32,
     buffer_height: u32, // black_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
     // red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
-    flip: bool,
+    rotate: DisplayRotation,
 }
 
 impl BWRDisplay {
-    pub fn new(width: u32, height: u32, flip: bool) -> Self {
+    pub fn new(width: u32, height: u32, rotate: DisplayRotation) -> Self {
         let mut buffer_height: u32 = height;
+
+        if rotate == DisplayRotation::Rotate90 || rotate == DisplayRotation::Rotate270 {
+            buffer_height = width;
+        }
 
         if buffer_height % 8 != 0 {
             buffer_height = (buffer_height / 8 + 1) * 8;
@@ -27,7 +34,7 @@ impl BWRDisplay {
             width,
             height,
             buffer_height,
-            flip,
+            rotate,
         }
     }
 
@@ -104,24 +111,32 @@ impl DrawTarget for BWRDisplay {
 
             // if let Ok((x @ 0..self.width, y @ 0..=121)) = coord.try_into() {
             // Calculate the index in the framebuffer.
+
+            let mut cx = coord.x;
+            let mut cy = coord.y;
+
+            // Flip upside down
+            if self.rotate == DisplayRotation::Rotate180
+                || self.rotate == DisplayRotation::Rotate270
+            {
+                cx = cx * -1 + (self.width as i32 - 1);
+                cy = cy * -1 + (self.height as i32 - 1);
+            }
+
+            if self.rotate == DisplayRotation::Rotate90 || self.rotate == DisplayRotation::Rotate270
+            {
+                let t = cx;
+                cx = cy;
+                cy = t;
+            }
+
             if coord.x >= 0
                 && coord.y >= 0
                 && coord.x < self.width as i32
                 && coord.y < self.height as i32
             {
-                let index: u32;
-                if self.flip {
-                    // let extra_y: i32 = (self.buffer_height - self.height) as i32;
-
-                    let extra_y: i32 = 0;
-
-                    let x = coord.x * -1 + (self.width as i32 - 1);
-                    let y = coord.y * -1 + (self.height as i32 - 1) + extra_y;
-                    index = x as u32 * self.buffer_height as u32 + y as u32;
-                } else {
-                    index = coord.x as u32 * self.buffer_height as u32 + coord.y as u32;
-                }
-
+                // Limit drawing outside buffer
+                let index = cx as u32 * self.buffer_height + cy as u32;
                 self.framebuffer[index as usize] = (color) as u8;
             }
 

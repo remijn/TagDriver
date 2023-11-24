@@ -16,7 +16,6 @@ pub fn start_eink_thread(
     baud: u32,
     width: u32,
     height: u32,
-    flip: bool,
 ) -> Result<EInkInterface, Box<dyn Error>> {
     // Create the serial port
     let mut port = tokio_serial::new(port_str, baud)
@@ -58,7 +57,6 @@ pub fn start_eink_thread(
         height,
         buffer_height: h,
         _port: port_str,
-        flip,
         black_border: false,
     });
 }

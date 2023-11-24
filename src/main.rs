@@ -14,7 +14,7 @@ use display::{
     },
     COLOR_BG, COLOR_FG,
 };
-use eink::{thread::start_eink_thread, EInkInterface};
+use eink::thread::start_eink_thread;
 
 use embedded_canvas::Canvas;
 use embedded_graphics::{
@@ -40,6 +40,14 @@ use embedded_icon::mdi::{
 };
 use embedded_icon::NewIcon;
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum DisplayRotation {
+    Zero,
+    Rotate90,
+    Rotate180,
+    Rotate270,
+}
+
 // impl Into<IconObj<T> for Icon<C, T> {}
 
 use itertools::Itertools;
@@ -61,39 +69,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup the EInk interface threads, these handle the uart
     // ////////////
 
-    let interface1: EInkInterface = start_eink_thread(
-        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if00",
-        912600,
-        250,
-        122,
-        false,
-    )?;
-
-    let interface2: EInkInterface = start_eink_thread(
-        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if04",
-        912600,
-        250,
-        122,
-        true,
-    )?;
-    let interface3: EInkInterface = start_eink_thread(
-        "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if02",
-        912600,
-        300,
-        400,
-        false,
-    )?;
-
-    // ////////////
-    // Initialise the Display and rendering code for each interface
-    // ////////////
-    let mut screens: [(BWRDisplay, EInkInterface); SCREEN_COUNT as usize] =
-        [interface1, interface2, interface3].map(|interface| {
-            (
-                BWRDisplay::new(interface.width, interface.height, interface.flip),
-                interface,
-            )
-        });
+    let mut screens = [
+        (
+            BWRDisplay::new(250, 122, DisplayRotation::Zero),
+            start_eink_thread(
+                "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if00",
+                912600,
+                250,
+                122,
+            )?,
+        ),
+        (
+            BWRDisplay::new(250, 122, DisplayRotation::Rotate180),
+            start_eink_thread(
+                "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if04",
+                912600,
+                250,
+                122,
+            )?,
+        ),
+        (
+            BWRDisplay::new(400, 300, DisplayRotation::Rotate270),
+            start_eink_thread(
+                "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if02",
+                912600,
+                300,
+                400,
+            )?,
+        ),
+    ];
 
     // ////////////
     // Setup the dbus Proxies and Properties we want to listen to
