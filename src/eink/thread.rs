@@ -21,7 +21,7 @@ pub fn start_eink_thread(
     let mut port = tokio_serial::new(port_str, baud)
         .timeout(Duration::from_millis(1000))
         .open_native_async()
-        .expect(format!("Failed to connect to device {}", port_str).as_str());
+        .unwrap_or_else(|_| panic!("Failed to connect to device {}", port_str));
 
     port.set_exclusive(true)?;
 
@@ -49,7 +49,7 @@ pub fn start_eink_thread(
         h += 8 - height % 8;
     }
 
-    return Ok(EInkInterface {
+    Ok(EInkInterface {
         rx,
         tx,
         state: EInkResponse::OK,
@@ -58,7 +58,7 @@ pub fn start_eink_thread(
         buffer_height: h,
         _port: port_str,
         black_border: false,
-    });
+    })
 }
 
 pub(crate) async fn run_thread(
@@ -91,7 +91,7 @@ pub(crate) async fn run_thread(
         }
 
         match resp {
-            Ok(EInkCommand::SHOW {
+            Ok(EInkCommand::Show {
                 buffer,
                 x,
                 y,
@@ -101,7 +101,7 @@ pub(crate) async fn run_thread(
                 black_border,
                 full_refresh,
             }) => {
-                tx.send(EInkResponse::BUSY).await.expect("Error Sending");
+                tx.send(EInkResponse::Busy).await.expect("Error Sending");
 
                 interface
                     .send_image(
@@ -118,9 +118,9 @@ pub(crate) async fn run_thread(
 
                 // sleep(Duration::from_millis(200)).await;
                 // interface.wait_ready().await?;
-                tx.send(EInkResponse::READY).await.expect("Error Sending");
+                tx.send(EInkResponse::Ready).await.expect("Error Sending");
             }
-            Ok(EInkCommand::LED { color }) => {
+            Ok(EInkCommand::Led { color }) => {
                 interface.set_led(color).await?;
             }
             Err(_e) => sleep(Duration::from_millis(10)).await,

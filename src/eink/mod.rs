@@ -21,16 +21,16 @@ pub struct EInkInterface {
 #[derive(Debug, Clone)]
 pub enum EInkResponse {
     OK,
-    READY,
-    BUSY,
-    ERROR,
-    DISCONNECTED,
+    Ready,
+    Busy,
+    Error,
+    Disconnected,
 }
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum EInkCommand {
-    SHOW {
+    Show {
         buffer: Vec<u8>,
         x: u32,
         y: u32,
@@ -40,7 +40,7 @@ pub enum EInkCommand {
         black_border: bool,
         full_refresh: bool,
     },
-    LED {
+    Led {
         color: u8,
     },
 }
@@ -51,9 +51,9 @@ impl EInkInterface {
         println!(
             "{} Full display on screen {}",
             log::SCREEN,
-            self._port.split("_").last().or(Some(self._port)).expect("")
+            self._port.split('_').last().or(Some(self._port)).expect("")
         );
-        self.send_command(EInkCommand::SHOW {
+        self.send_command(EInkCommand::Show {
             buffer,
             x: 0,
             y: 0,
@@ -71,9 +71,9 @@ impl EInkInterface {
         println!(
             "{} Fast display on screen {}",
             log::SCREEN,
-            self._port.split("_").last().or(Some(self._port)).expect("")
+            self._port.split('_').last().or(Some(self._port)).expect("")
         );
-        self.send_command(EInkCommand::SHOW {
+        self.send_command(EInkCommand::Show {
             buffer,
             x: 0,
             y: 0,
@@ -95,7 +95,7 @@ impl EInkInterface {
         width: u32,
         height: u32,
     ) -> Result<(), SendError<EInkCommand>> {
-        self.send_command(EInkCommand::SHOW {
+        self.send_command(EInkCommand::Show {
             buffer,
             x,
             y,
@@ -123,10 +123,10 @@ impl std::fmt::Display for EInkResponse {
             "{}",
             match &self {
                 EInkResponse::OK => "Ok",
-                EInkResponse::READY => "Ready",
-                EInkResponse::BUSY => "Busy",
-                EInkResponse::ERROR => "Error",
-                EInkResponse::DISCONNECTED => "Disconnected",
+                EInkResponse::Ready => "Ready",
+                EInkResponse::Busy => "Busy",
+                EInkResponse::Error => "Error",
+                EInkResponse::Disconnected => "Disconnected",
             }
         )
     }
@@ -135,16 +135,16 @@ impl std::fmt::Display for EInkResponse {
 impl From<serialport::Error> for EInkResponse {
     fn from(err: serialport::Error) -> EInkResponse {
         match err.kind {
-            serialport::ErrorKind::NoDevice => return EInkResponse::DISCONNECTED,
-            _ => return EInkResponse::ERROR,
+            serialport::ErrorKind::NoDevice => EInkResponse::Disconnected,
+            _ => EInkResponse::Error,
         }
     }
 }
 impl From<std::io::Error> for EInkResponse {
     fn from(err: std::io::Error) -> EInkResponse {
         match err.kind() {
-            std::io::ErrorKind::WouldBlock => return EInkResponse::BUSY,
-            _ => return EInkResponse::ERROR,
+            std::io::ErrorKind::WouldBlock => EInkResponse::Busy,
+            _ => EInkResponse::Error,
         }
     }
 }

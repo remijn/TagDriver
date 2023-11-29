@@ -41,7 +41,7 @@ impl DisplayComponent for ImageBackground {
         _state: &ApplicationState,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Image::new(self.image.as_ref(), Point::new(0, 0)).draw(target)?;
-        return Ok(());
+        Ok(())
     }
 
     fn get_z_index(&self, _state: &ApplicationState) -> u32 {

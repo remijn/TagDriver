@@ -39,7 +39,7 @@ impl EInkUartInterface {
 
     pub async fn send_message(&mut self, message: &[u8]) -> Result<EInkResponse, EInkResponse> {
         self.dump_rx();
-        self.port.write(message)?;
+        self.port.write_all(message)?;
         self.port.flush()?;
         sleep(Duration::from_millis(20)).await; //give it a moment
 
@@ -65,9 +65,9 @@ impl EInkUartInterface {
         if response.contains("OK") {
             Ok(EInkResponse::OK)
         } else if response.contains("BUSY") {
-            Err(EInkResponse::BUSY)
+            Err(EInkResponse::Busy)
         } else {
-            Err(EInkResponse::ERROR)
+            Err(EInkResponse::Error)
         }
     }
 
@@ -80,7 +80,7 @@ impl EInkUartInterface {
                 Ok(data) => {
                     return Ok(data);
                 }
-                Err(EInkResponse::BUSY) if start.elapsed().as_secs() < 20 => {
+                Err(EInkResponse::Busy) if start.elapsed().as_secs() < 20 => {
                     // Busy
                     sleep(Duration::from_millis(100)).await;
                     continue; //Retry
@@ -114,8 +114,8 @@ impl EInkUartInterface {
 
             // println!("rd:{} cs:{}", remaining_data.len(), chunk_size);
 
-            self.port.write(chunk)?;
-            self.port.write(DELIMITER.as_bytes())?;
+            self.port.write_all(chunk)?;
+            self.port.write_all(DELIMITER.as_bytes())?;
             self.port.flush()?;
 
             remaining_data = rest;
@@ -153,11 +153,11 @@ impl EInkUartInterface {
         if response.contains("OK") {
             Ok(response.trim().to_string())
         } else if response.contains("BUSY") {
-            Err(EInkResponse::BUSY)
+            Err(EInkResponse::Busy)
         } else {
             println!("{} Error: {}", log::ERROR, response);
             // sleep(Duration::from_millis(10));
-            Err(EInkResponse::ERROR)
+            Err(EInkResponse::Error)
         }
     }
 
@@ -180,7 +180,7 @@ impl EInkUartInterface {
     #[allow(dead_code)]
     pub async fn wait_ready(&mut self) -> Result<EInkResponse, EInkResponse> {
         let cmd: String = "AT+READY=\r\n".to_string();
-        return self.send_cmd(&cmd).await;
+        self.send_cmd(&cmd).await
     }
 
     #[allow(dead_code)]
@@ -189,11 +189,12 @@ impl EInkUartInterface {
         let cmd = format!("AT+LED={}\r\n", value);
         let resp = self.send_cmd(&cmd).await;
         if resp.is_err() {
-            return Err(EInkResponse::ERROR);
+            return Err(EInkResponse::Error);
         }
-        return Ok(());
+        Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)] //reflects the uart data structure
     pub async fn send_image(
         &mut self,
         data: &[u8], // Full buffer
@@ -206,7 +207,7 @@ impl EInkUartInterface {
         border: bool,
     ) {
         // Prepare AT+IMG Command
-        let crc: u8 = data.into_iter().fold(0, |acc, &x| acc.wrapping_add(x));
+        let crc: u8 = data.iter().fold(0, |acc, &x| acc.wrapping_add(x));
         // self.dump_rx();
 
         let cmd = format!(

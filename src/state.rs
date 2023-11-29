@@ -22,7 +22,7 @@ pub enum StateValueType {
     U64(u64),
     I64(i64),
     F64(f64),
-    STRING(String),
+    String(String),
 }
 
 impl StateValueType {
@@ -38,7 +38,7 @@ impl StateValueType {
             | ArgType::Byte
             | ArgType::Boolean => StateValueType::U64(ref_arg.as_u64().expect("Cast error")),
             ArgType::String => {
-                StateValueType::STRING(ref_arg.as_str().expect("Cast error").to_string())
+                StateValueType::String(ref_arg.as_str().expect("Cast error").to_string())
             }
 
             ArgType::Double => StateValueType::F64(ref_arg.as_f64().expect("Cast error")),
@@ -76,7 +76,7 @@ impl ApplicationState {
                 return value.value.as_ref();
             }
         }
-        return None;
+        None
     }
 
     pub fn update_dbus(&mut self, property: &DBusPropertyAdress, val: &dyn RefArg) {
@@ -105,7 +105,7 @@ impl ApplicationState {
 
 // PROXY Backlight power settings
 static BACKLIGHT_PROXY: DBusProxyAdress = DBusProxyAdress::new(
-    BusType::SESSION,
+    BusType::Session,
     "org.gnome.SettingsDaemon.Power",
     "/org/gnome/SettingsDaemon/Power",
 );
@@ -119,7 +119,7 @@ static BRIGHTNESS_PROPERTY: DBusPropertyAdress = DBusPropertyAdress::new(
 
 // PROXY playerctld Media player
 static PLAYER_PROXY: DBusProxyAdress = DBusProxyAdress::new(
-    BusType::SESSION,
+    BusType::Session,
     "org.mpris.MediaPlayer2.playerctld",
     "/org/mpris/MediaPlayer2",
 );
@@ -129,7 +129,7 @@ static PLAYER_VOLUME_PROPERTY: DBusPropertyAdress =
 
 // PROXY Battery status
 static BATTERY_PROXY: DBusProxyAdress = DBusProxyAdress::new(
-    BusType::SYSTEM,
+    BusType::System,
     "org.freedesktop.UPower",
     "/org/freedesktop/UPower/devices/battery_BAT1",
 );
@@ -177,5 +177,5 @@ pub fn build_state_map() -> ApplicationState {
         },
     );
 
-    return ApplicationState { map };
+    ApplicationState { map }
 }

@@ -26,8 +26,7 @@ impl BWRDisplay {
             buffer_height = (buffer_height / 8 + 1) * 8;
         }
 
-        let mut framebuffer = Vec::<u8>::with_capacity((width * buffer_height) as usize);
-        framebuffer.resize((width * buffer_height) as usize, 0);
+        let framebuffer = vec![0; (width * buffer_height) as usize];
 
         Self {
             framebuffer,
@@ -40,11 +39,9 @@ impl BWRDisplay {
 
     pub fn get_fixed_buffer(&mut self) -> (Vec<u8>, Vec<u8>) {
         // New correctly sized buffer
-        let mut black_buffer = Vec::<u8>::new();
-        black_buffer.resize((self.width * (self.buffer_height / 8)) as usize, 0);
+        let mut black_buffer = vec![0; (self.width * (self.buffer_height / 8)) as usize];
 
-        let mut red_buffer = Vec::<u8>::new();
-        red_buffer.resize((self.width * (self.buffer_height / 8)) as usize, 0);
+        let mut red_buffer = vec![0; (self.width * (self.buffer_height / 8)) as usize];
 
         let mut i = 0;
         while i < self.width * self.buffer_height / 8 {
@@ -75,21 +72,19 @@ impl BWRDisplay {
 
     #[allow(dead_code)]
     pub fn partial_buffer(&mut self, black_buffer: &[u8], point: Point, size: Size) -> Vec<u8> {
-        let mut pbuf: Vec<u8> = Vec::new();
-        pbuf.resize((size.width * size.height / 8) as usize, 0);
+        let mut pbuf: Vec<u8> = vec![0; (size.width * size.height / 8) as usize];
 
         for tx in 0..size.width {
             for ty in 0..size.height / 8 {
                 let buf_i: u32 = tx * size.height / 8 + ty;
 
-                let old_i: u32 = (tx + point.x as u32) * self.buffer_height as u32 / 8
-                    + ty
-                    + (point.y as u32 / 8);
+                let old_i: u32 =
+                    (tx + point.x as u32) * self.buffer_height / 8 + ty + (point.y as u32 / 8);
 
                 pbuf[buf_i as usize] = black_buffer[old_i as usize];
             }
         }
-        return pbuf;
+        pbuf
     }
 }
 
@@ -119,15 +114,13 @@ impl DrawTarget for BWRDisplay {
             if self.rotate == DisplayRotation::Rotate180
                 || self.rotate == DisplayRotation::Rotate270
             {
-                cx = cx * -1 + (self.width as i32 - 1);
-                cy = cy * -1 + (self.height as i32 - 1);
+                cx = -cx + (self.width as i32 - 1);
+                cy = -cy + (self.height as i32 - 1);
             }
 
             if self.rotate == DisplayRotation::Rotate90 || self.rotate == DisplayRotation::Rotate270
             {
-                let t = cx;
-                cx = cy;
-                cy = t;
+                std::mem::swap(&mut cx, &mut cy);
             }
 
             if coord.x >= 0

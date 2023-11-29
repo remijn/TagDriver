@@ -23,8 +23,8 @@ type DBusUpdate = (&'static DBusPropertyAdress, Option<Box<dyn RefArg>>);
 #[allow(dead_code)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum BusType {
-    SESSION,
-    SYSTEM,
+    Session,
+    System,
 }
 
 // Define DBus structs

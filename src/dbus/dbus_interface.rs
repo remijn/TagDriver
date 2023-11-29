@@ -70,8 +70,8 @@ pub async fn run_dbus_thread(
         // let clone_proxy: DBusProxyAdress = proxy.clone();
 
         let connection = match proxy.bus {
-            BusType::SESSION => &session_conn,
-            BusType::SYSTEM => &system_conn,
+            BusType::Session => &session_conn,
+            BusType::System => &system_conn,
         };
 
         let conn_proxy = connection.with_proxy(proxy.dest, proxy.path, Duration::from_secs(2));
@@ -81,7 +81,7 @@ pub async fn run_dbus_thread(
                 continue;
             }
             // Get initial value
-            let res = conn_proxy.get::<Box<dyn RefArg>>(property.interface, &property.property);
+            let res = conn_proxy.get::<Box<dyn RefArg>>(property.interface, property.property);
 
             if let Ok(result) = res {
                 state_lock.update_dbus(property, &result);
@@ -123,7 +123,7 @@ pub async fn run_dbus_thread(
 
                         // print_refarg(&value.1.expect("huh?"));
                     }
-                    if updates.len() > 0 {
+                    if !updates.is_empty() {
                         println!("{} {} Values {:?} ", log::DBUS, iface, updates);
                         clone_tx.try_send(updates).expect("Could not send");
                     }
@@ -145,7 +145,7 @@ pub async fn run_dbus_thread(
             .expect("Could not process system dbus messages");
 
         while let Ok(dbus_values) = rx.try_recv() {
-            if dbus_values.len() == 0 {
+            if dbus_values.is_empty() {
                 continue;
             }
             let mut updated = false;

@@ -72,6 +72,8 @@ const SCREEN_COUNT: u8 = 3;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", log::WELCOME);
+
     // ////////////
     // Setup the EInk interface threads, these handle the uart
     // ////////////
@@ -109,8 +111,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup the global app state
 
     let state = Arc::new(Mutex::new(build_state_map()));
-
-    println!("{}", log::WELCOME);
 
     let stdin_state = state.clone();
     tokio::spawn(async move {
@@ -278,7 +278,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Image::with_center(&BatteryOffOutline::new(ICON_COLOR), center)
                             .draw(target)
                             .ok();
-                        return;
                     }
                     BatteryState::Full => {
                         draw_arc(target, bat_percentage, center);
@@ -319,7 +318,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             1 => {
                                 Image::with_center(&Battery10::new(ICON_COLOR), center).draw(target)
                             }
-                            0 | _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
+                            _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
                                 .draw(target),
                         }
                         .ok();
@@ -348,7 +347,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .draw(target),
                             1 => Image::with_center(&BatteryCharging10::new(ICON_COLOR), center)
                                 .draw(target),
-                            0 | _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
+                            _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
                                 .draw(target),
                         }
                         .ok();
@@ -482,16 +481,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut size = display.size();
 
-                match component.0.get_type() {
-                    DisplayAreaType::Area(width, height) => {
-                        size = Size::new(width, height);
-                    }
-                    _ => {}
+                if let DisplayAreaType::Area(width, height) = component.0.get_type() {
+                    size = Size::new(width, height);
                 }
 
                 let mut canvas = {
-                    let canvas = Canvas::<BWRColor>::new(size);
-
                     // draw a rectangle smaller than the canvas (with 1px)
                     // let canvas_rectangle = Rectangle::new(Point::zero(), size);
 
@@ -499,7 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // draw the canvas rectangle for debugging
                     // canvas_outline.draw(&mut canvas)?;
 
-                    canvas
+                    Canvas::<BWRColor>::new(size)
                 };
 
                 component.0.draw(&mut canvas, &values)?;

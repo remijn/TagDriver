@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::{
     error::Error,
     time::{Duration, Instant},
@@ -73,7 +74,7 @@ impl DisplayComponent for BarDialog {
     fn get_z_index(&self, values: &ApplicationState) -> u32 {
         let res = values.get(self.property);
 
-        if let None = res {
+        if res.is_none() {
             println!(
                 "{} Can't get z-index, property {} does not exist in values",
                 log::ERROR,
@@ -82,13 +83,12 @@ impl DisplayComponent for BarDialog {
             return 0;
         }
 
-        let value = res.expect(
-            format!(
+        let value = res.unwrap_or_else(|| {
+            panic!(
                 "Can't get z-index, property {} does not exist in values",
                 self.property
             )
-            .as_str(),
-        );
+        });
 
         if let Some(val) = self.old_state.get(self.property) {
             if val != value {
@@ -105,7 +105,7 @@ impl DisplayComponent for BarDialog {
             }
         }
 
-        return 0;
+        0
     }
 
     fn draw(
@@ -114,7 +114,7 @@ impl DisplayComponent for BarDialog {
         values: &ApplicationState,
     ) -> Result<(), Box<dyn Error>> {
         let res = values.get(self.property);
-        if let None = res {
+        if res.is_none() {
             println!(
                 "{} Can't get z-index, property {} does not exist in values",
                 log::ERROR,
@@ -122,13 +122,12 @@ impl DisplayComponent for BarDialog {
             );
             return Ok(());
         }
-        let value = res.expect(
-            format!(
+        let value = res.unwrap_or_else(|| {
+            panic!(
                 "Can't draw component, property {} does not exist in values",
                 self.property
             )
-            .as_str(),
-        );
+        });
 
         if let Some(val) = self.old_state.get(self.property) {
             if val != value {
@@ -183,14 +182,14 @@ impl DisplayComponent for BarDialog {
         .into_styled(FILL_STYLE_FG)
         .draw(target)?;
 
-        return Ok(());
+        Ok(())
     }
 
     fn get_refresh_at(&self) -> Option<Instant> {
         if self.close_at > Instant::now() {
             return Some(self.close_at);
         }
-        return None;
+        None
     }
 }
 
@@ -213,44 +212,28 @@ impl ApplicationStateConsumer for BarDialog {
             match new_value_type {
                 StateValueType::F64(val) => {
                     if let Some(StateValueType::F64(old)) = old_value.value {
-                        if old == *val {
-                            return false;
-                        } else {
-                            return true;
-                        }
+                        return old != *val;
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
                 }
                 StateValueType::U64(val) => {
                     if let Some(StateValueType::U64(old)) = old_value.value {
-                        if old == *val {
-                            return false;
-                        } else {
-                            return true;
-                        }
+                        return old != *val;
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
                 }
                 StateValueType::I64(val) => {
                     if let Some(StateValueType::I64(old)) = old_value.value {
-                        if old == *val {
-                            return false;
-                        } else {
-                            return true;
-                        }
+                        return old != *val;
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
                 }
-                StateValueType::STRING(val) => {
-                    if let Some(StateValueType::STRING(old)) = &old_value.value {
-                        if *old == *val {
-                            return false;
-                        } else {
-                            return true;
-                        }
+                StateValueType::String(val) => {
+                    if let Some(StateValueType::String(old)) = &old_value.value {
+                        return *old != *val;
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
@@ -258,6 +241,6 @@ impl ApplicationStateConsumer for BarDialog {
             };
         }
         // our key was not found
-        return false;
+        false
     }
 }

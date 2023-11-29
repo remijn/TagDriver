@@ -56,7 +56,7 @@ impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
             Point::new(self.width as i32 / 2, self.height as i32 / 2),
         );
 
-        return Ok(());
+        Ok(())
     }
 
     fn get_z_index(&self, _values: &ApplicationState) -> u32 {

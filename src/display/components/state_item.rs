@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use embedded_canvas::Canvas;
 use embedded_graphics::geometry::Point;
 
@@ -70,7 +71,7 @@ impl DisplayComponent for StateItem {
             Point::new(self.width as i32 / 2, self.height as i32 / 2),
         );
 
-        return Ok(());
+        Ok(())
     }
 
     fn get_z_index(&self, _values: &ApplicationState) -> u32 {
@@ -135,8 +136,8 @@ impl ApplicationStateConsumer for StateItem {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
-                    StateValueType::STRING(val) => {
-                        if let Some(StateValueType::STRING(old)) = &old_value.value {
+                    StateValueType::String(val) => {
+                        if let Some(StateValueType::String(old)) = &old_value.value {
                             if *old == *val {
                                 continue;
                             } else {
@@ -150,6 +151,6 @@ impl ApplicationStateConsumer for StateItem {
             }
         }
         // our key was not found
-        return false;
+        false
     }
 }
