@@ -8,12 +8,12 @@ pub mod state_item;
 use embedded_canvas::Canvas;
 use embedded_graphics::prelude::Point;
 
-use super::{super::dbus::*, bwr_color::BWRColor};
+use crate::state::ApplicationState;
 
-pub trait DBusConsumer {
-    fn needs_refresh(&self, new_values: &DBusValueMap) -> bool;
-    fn wanted_dbus_values(&self) -> Vec<&'static DBusPropertyAdress>;
-    fn set_initial(&mut self, new_values: &DBusValueMap);
+use super::bwr_color::BWRColor;
+
+pub trait ApplicationStateConsumer {
+    fn needs_refresh(&self, new_values: &ApplicationState) -> bool;
 }
 
 pub type NextRefresh = (Instant, RefreshType);
@@ -36,17 +36,17 @@ pub trait DisplayComponent {
     fn draw(
         &mut self,
         target: &mut Canvas<BWRColor>,
-        values: Box<DBusValueMap>,
+        values: &ApplicationState,
     ) -> Result<(), Box<dyn Error>>;
-    fn get_z_index(&self, values: &DBusValueMap) -> u32;
+    fn get_z_index(&self, values: &ApplicationState) -> u32;
     fn get_refresh_at(&self) -> Option<Instant> {
         None
     }
 
-    fn dbus(&self) -> Option<&dyn DBusConsumer> {
+    fn dbus(&self) -> Option<&dyn ApplicationStateConsumer> {
         None
     }
-    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
+    fn dbus_mut(&mut self) -> Option<&mut dyn ApplicationStateConsumer> {
         None
     }
 }

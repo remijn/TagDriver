@@ -1,10 +1,15 @@
 use core::fmt;
-use std::time::{Duration, Instant};
+use std::{
+    io::{self},
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 mod dbus;
 mod display;
 mod eink;
 mod log;
+mod state;
 
 use display::{
     bwr_color::BWRColor,
@@ -21,7 +26,7 @@ use embedded_graphics::{
     geometry::{Angle, OriginDimensions, Point, Size},
     image::Image,
     prelude::DrawTarget,
-    primitives::{Arc, Circle, Primitive, PrimitiveStyle},
+    primitives::{Arc as GraphicArc, Circle, Primitive, PrimitiveStyle},
     Drawable,
 };
 
@@ -52,13 +57,15 @@ pub enum DisplayRotation {
 
 use itertools::Itertools;
 use tinybmp::Bmp;
-use tokio::{sync::mpsc, time::sleep};
-
-use dbus::{BusType, DBusPropertyAdress, DBusProxyAdress};
+use tokio::{
+    sync::{mpsc, Mutex},
+    time::sleep,
+};
 
 use crate::{
-    dbus::{DBusValue, DBusValueMap},
+    dbus::dbus_interface::run_dbus_thread,
     display::components::{simple_item::SimpleItem, state_item::StateItem},
+    state::{build_state_map, ApplicationState, StateValueType},
 };
 
 const SCREEN_COUNT: u8 = 3;
@@ -99,54 +106,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     ];
 
-    // ////////////
-    // Setup the dbus Proxies and Properties we want to listen to
-    // ////////////
+    // Setup the global app state
 
+    let state = Arc::new(Mutex::new(build_state_map()));
+
+    println!("{}", log::WELCOME);
+
+    let stdin_state = state.clone();
+    tokio::spawn(async move {
+        loop {
+            let mut buffer = String::new();
+            io::stdin().read_line(&mut buffer).unwrap();
+            match buffer.trim() {
+                "state" => {
+                    let lock = stdin_state.lock().await;
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&*lock).expect("cant get json")
+                    );
+                    drop(lock);
+                }
+                _ => println!("Unknown command {}", buffer.trim()),
+            }
+        }
+    });
+
+    // Start the dbus thread
+    let dbus_state = state.clone();
     let (dbus_tx, mut dbus_rx) = mpsc::channel::<bool>(20);
-    let mut dbus_interface =
-        dbus::dbus_interface::DBusInterface::new(dbus_tx).expect("Could not connect to DBus");
+    tokio::spawn(async move {
+        run_dbus_thread(dbus_tx, dbus_state)
+            .await
+            .expect("DBus thread crashed");
+    });
 
-    // PROXY Backlight power settings
-    static BACKLIGHT_PROXY: DBusProxyAdress = DBusProxyAdress::new(
-        BusType::SESSION,
-        "org.gnome.SettingsDaemon.Power",
-        "/org/gnome/SettingsDaemon/Power",
-    );
+    sleep(Duration::from_millis(10)).await;
 
-    // PROP display brightness
-    static BRIGHTNESS_PROPERTY: DBusPropertyAdress = DBusPropertyAdress::new(
-        &BACKLIGHT_PROXY,
-        "org.gnome.SettingsDaemon.Power.Screen",
-        "Brightness",
-    );
-
-    // PROXY playerctld Media player
-    static PLAYER_PROXY: DBusProxyAdress = DBusProxyAdress::new(
-        BusType::SESSION,
-        "org.mpris.MediaPlayer2.playerctld",
-        "/org/mpris/MediaPlayer2",
-    );
-    // PROP Volume
-    static PLAYER_VOLUME_PROPERTY: DBusPropertyAdress =
-        DBusPropertyAdress::new(&PLAYER_PROXY, "org.mpris.MediaPlayer2.Player", "Volume");
-
-    // PROXY Battery status
-    static BATTERY_PROXY: DBusProxyAdress = DBusProxyAdress::new(
-        BusType::SYSTEM,
-        "org.freedesktop.UPower",
-        "/org/freedesktop/UPower/devices/battery_BAT1",
-    );
-    // PROP Battery Percentage
-    static BATTERY_LEVEL_PROPERTY: DBusPropertyAdress = DBusPropertyAdress::new(
-        &BATTERY_PROXY,
-        "org.freedesktop.UPower.Device",
-        "Percentage",
-    );
-
-    // PROP Battery State
-    static BATTERY_STATE_PROPERTY: DBusPropertyAdress =
-        DBusPropertyAdress::new(&BATTERY_PROXY, "org.freedesktop.UPower.Device", "State");
+    let state_lock = state.lock().await;
 
     // ////////////
     // Configure the components to be displayed
@@ -160,8 +156,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const BRIGHTNESS_ICON_COUNT: u32 = 6;
     let mut brightness_dialog = BarDialog::new(
         "brightness dialog",
-        &BRIGHTNESS_PROPERTY,
+        "backlight:brightness",
         0,
+        state_lock.clone(),
         Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             // const color = BWRColor::Off;
             match (val * BRIGHTNESS_ICON_COUNT as f64).floor() as u32 {
@@ -171,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 3 => Image::with_center(&Brightness4::new(ICON_COLOR), center).draw(target),
                 2 => Image::with_center(&Brightness3::new(ICON_COLOR), center).draw(target),
                 1 => Image::with_center(&Brightness2::new(ICON_COLOR), center).draw(target),
-                0 | _ => Image::with_center(&Brightness1::new(ICON_COLOR), center).draw(target),
+                _ => Image::with_center(&Brightness1::new(ICON_COLOR), center).draw(target),
             }
             .ok();
         }),
@@ -182,16 +179,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const PLAYER_VOLUME_ICON_COUNT: u32 = 3;
     let mut player_volume_dialog = BarDialog::new(
         "player volume dialog",
-        &PLAYER_VOLUME_PROPERTY,
+        "player:volume",
         1,
+        state_lock.clone(),
         Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             match (val * PLAYER_VOLUME_ICON_COUNT as f64).ceil() as u16 {
                 3 => Image::with_center(&VolumeHigh::new(ICON_COLOR), center).draw(target),
                 2 => Image::with_center(&VolumeMedium::new(ICON_COLOR), center).draw(target),
                 1 => Image::with_center(&VolumeLow::new(ICON_COLOR), center).draw(target),
-                0 | _ => {
-                    Image::with_center(&VolumeVariantOff::new(ICON_COLOR), center).draw(target)
-                }
+                _ => Image::with_center(&VolumeVariantOff::new(ICON_COLOR), center).draw(target),
             }
             .ok();
         }),
@@ -239,26 +235,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     const BATTERY_ICON_COUNT: u32 = 10;
     let mut battery_icon = StateItem::new(
         "Battery Icon",
-        [&BATTERY_LEVEL_PROPERTY, &BATTERY_STATE_PROPERTY].to_vec(),
+        ["battery:level", "battery:state"].to_vec(),
         0,
+        state_lock.clone(),
         Box::new(
-            |target: &mut Canvas<BWRColor>, values: DBusValueMap, center: Point| {
-                let level = values.get(&BATTERY_LEVEL_PROPERTY).expect("no level");
+            |target: &mut Canvas<BWRColor>, values: &ApplicationState, center: Point| {
+                let Some(StateValueType::F64(level)) = values.get("battery:level") else {
+                    panic!("Value not f64");
+                };
 
-                let bat_percentage = match level {
-                    DBusValue::F64(val) => *val,
-                    DBusValue::U64(val) => *val as f64 / 100.0,
-                    DBusValue::I64(val) => *val as f64 / 100.0,
-                    _ => 0.0,
-                } / 100.0;
+                let bat_percentage = level / 100.0;
 
-                let state = values.get(&BATTERY_STATE_PROPERTY).expect("no state");
-                let bat_state = match state {
-                    DBusValue::U64(val) if *val == 0 => BatteryState::Unknown,
-                    DBusValue::U64(val) if *val == 1 => BatteryState::Charging,
-                    DBusValue::U64(val) if *val == 2 => BatteryState::Discharging,
-                    DBusValue::U64(val) if *val == 3 => BatteryState::Empty,
-                    DBusValue::U64(val) if *val == 4 => BatteryState::Full,
+                let Some(StateValueType::U64(bat_state)) = values.get("battery:state") else {
+                    panic!("Value not u64");
+                };
+                let bat_state = match bat_state {
+                    0 => BatteryState::Unknown,
+                    1 => BatteryState::Charging,
+                    2 => BatteryState::Discharging,
+                    3 => BatteryState::Empty,
+                    4 => BatteryState::Full,
                     _ => BatteryState::Unknown,
                 };
 
@@ -267,7 +263,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         center,
                         target.size().width.min(target.size().height) - 7,
                     );
-                    Arc::from_circle(
+                    GraphicArc::from_circle(
                         circle,
                         Angle::from_degrees(-90.0),
                         Angle::from_degrees((360.0 * value) as f32),
@@ -381,35 +377,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get all the wanted dbus properties and their initial values
     // ////////////
 
-    let mut properties: Vec<&DBusPropertyAdress> = Vec::new();
-    // Get all the wanted properties
-    let iter = display_components.iter();
-    for component in iter {
-        if let Some(dbus) = component.dbus() {
-            let mut values = dbus.wanted_dbus_values();
-            properties.append(&mut values);
-        }
-    }
+    // let mut properties: Vec<&DBusPropertyAdress> = Vec::new();
+    // // Get all the wanted properties
+    // let iter = display_components.iter();
+    // for component in iter {
+    //     if let Some(dbus) = component.dbus() {
+    //         let mut values = dbus.wanted_dbus_values();
+    //         properties.append(&mut values);
+    //     }
+    // }
 
-    let dbus_values = dbus_interface.values.clone();
-
-    let initial = dbus_interface.init(properties).await?; //.expect("Could not init DBus");
-
-    // Set the initial values for the components
-    for component in display_components.iter_mut() {
-        if let Some(dbus) = component.dbus_mut() {
-            dbus.set_initial(&initial);
-        }
-    }
+    // // Set the initial values for the components
+    // // for component in display_components.iter_mut() {
+    // //     if let Some(dbus) = component.dbus_mut() {
+    // //         dbus.set_initial(&initial);
+    // //     }
+    // // }
     // ////////////
     // Start the dbus thread
     // ////////////
 
-    println!("{}", log::WELCOME);
-
-    tokio::spawn(async move {
-        dbus_interface.run().await;
-    });
+    drop(state_lock);
 
     // ////////////
     // Run the main loop
@@ -424,14 +412,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         while let Ok(_has_new) = dbus_rx.try_recv() {
             // We have new values, check with each component if this new state requires a refresh
-            let values = &dbus_values.lock().await;
+            let state_lock = state.lock().await;
 
             for component in display_components.iter() {
                 let mut component_needs_refresh = false;
 
                 if let Some(dbus) = component.dbus() {
                     // Is updated needed by dbus?
-                    component_needs_refresh = dbus.needs_refresh(&values);
+                    component_needs_refresh = dbus.needs_refresh(&state_lock);
                 }
 
                 if component_needs_refresh {
@@ -469,7 +457,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             display.clear(COLOR_BG)?;
             interface.black_border = COLOR_BG == BWRColor::On;
 
-            let values = Box::new(dbus_values.lock().await.clone());
+            let values = Box::new(state.lock().await.clone());
 
             // list of components filtered by the current screen, mapped to zindex, and then sorted
             let components = display_components
@@ -514,7 +502,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     canvas
                 };
 
-                component.0.draw(&mut canvas, values.clone())?;
+                component.0.draw(&mut canvas, &values)?;
 
                 let refresh = component.0.get_refresh_at();
                 if refresh.is_some()

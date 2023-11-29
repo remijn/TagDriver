@@ -1,8 +1,7 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
-use dbus::arg::{ArgType, RefArg};
-
-use crate::log;
+use dbus::arg::RefArg;
+use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
 
 pub mod dbus_interface;
 mod playerctld;
@@ -22,14 +21,14 @@ impl<T: RefArg + Eq + PartialEq + Clone> RefArgEq for T {}
 type DBusUpdate = (&'static DBusPropertyAdress, Option<Box<dyn RefArg>>);
 
 #[allow(dead_code)]
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum BusType {
     SESSION,
     SYSTEM,
 }
 
 // Define DBus structs
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct DBusProxyAdress {
     bus: BusType,
     dest: &'static str,
@@ -43,49 +42,29 @@ impl DBusProxyAdress {
 
 // pub type DBusValueMap = HashMap<DBusPropertyAdress, Box<dyn RefArg>>;
 
-#[derive(PartialEq, Clone, Debug)]
-pub enum DBusValue {
-    F64(f64),
-    I64(i64),
-    U64(u64),
-    STRING(String),
-}
-
-impl DBusValue {
-    pub fn from_ref_arg(ref_arg: &dyn RefArg) -> DBusValue {
-        return match ref_arg.arg_type() {
-            ArgType::Int16 | ArgType::Int32 | ArgType::Int64 => {
-                DBusValue::I64(ref_arg.as_i64().expect("Cast error"))
-            }
-
-            ArgType::UInt16
-            | ArgType::UInt32
-            | ArgType::UInt64
-            | ArgType::Byte
-            | ArgType::Boolean => DBusValue::U64(ref_arg.as_u64().expect("Cast error")),
-            ArgType::String => DBusValue::STRING(ref_arg.as_str().expect("Cast error").to_string()),
-
-            ArgType::Double => DBusValue::F64(ref_arg.as_f64().expect("Cast error")),
-
-            _ => {
-                println!(
-                    "{} Could not convert type {}",
-                    log::ERROR,
-                    ref_arg.arg_type().as_str()
-                );
-                todo!();
-            }
-        };
-    }
-}
-
-pub type DBusValueMap = HashMap<&'static DBusPropertyAdress, DBusValue>;
+// pub type DBusValueMap = HashMap<&'static DBusPropertyAdress, DBusValue>;
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct DBusPropertyAdress {
     pub proxy: &'static DBusProxyAdress,
     pub interface: &'static str,
     pub property: &'static str,
+}
+
+// This is the trait that informs Serde how to serialize DBusPropertyAdress
+impl Serialize for DBusPropertyAdress {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut adress = serializer.serialize_struct("DBusPropertyAdress", 3)?;
+        adress.serialize_field("interface", &self.interface)?;
+        adress.serialize_field("property", &self.property)?;
+        adress.serialize_field("bus", &self.proxy.bus)?;
+        adress.serialize_field("destination", &self.proxy.dest)?;
+        adress.serialize_field("path", &self.proxy.path)?;
+        adress.end()
+    }
 }
 
 impl Display for DBusPropertyAdress {

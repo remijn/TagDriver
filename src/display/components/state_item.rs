@@ -1,38 +1,37 @@
-use std::collections::HashMap;
-
 use embedded_canvas::Canvas;
 use embedded_graphics::geometry::Point;
 
 use crate::{
-    dbus::{DBusPropertyAdress, DBusValue, DBusValueMap},
     display::bwr_color::BWRColor,
+    state::{ApplicationState, StateValueType},
 };
 
-use super::{DBusConsumer, DisplayComponent, IconComponent};
+use super::{ApplicationStateConsumer, DisplayComponent, IconComponent};
 
 pub struct StateItem {
     pub name: &'static str,
-    pub properties: Vec<&'static DBusPropertyAdress>,
+    pub properties: Vec<&'static str>,
     pub screen: u8,
     pub width: u32,
     pub height: u32,
-    old_values: Box<DBusValueMap>, // Values last drawn
-    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, DBusValueMap, Point)>,
+    old_state: ApplicationState, // Values last drawn
+    _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, &ApplicationState, Point)>,
 }
 
 impl StateItem {
     pub fn new(
         name: &'static str,
-        properties: Vec<&'static DBusPropertyAdress>,
+        properties: Vec<&'static str>,
         screen: u8,
-        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, DBusValueMap, Point)>,
+        initial_state: ApplicationState,
+        draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, &ApplicationState, Point)>,
     ) -> Self {
         Self {
             name,
             screen,
             width: 50,
             height: 50,
-            old_values: Box::new(HashMap::new()),
+            old_state: initial_state,
             properties,
             _draw_icon: draw_icon,
         }
@@ -41,7 +40,7 @@ impl StateItem {
 
 impl IconComponent for StateItem {
     fn draw_icon(&self, target: &mut Canvas<BWRColor>, _value: f64, center: Point) {
-        (self._draw_icon)(target, *self.old_values.clone(), center);
+        (self._draw_icon)(target, &self.old_state, center);
     }
 }
 
@@ -61,9 +60,9 @@ impl DisplayComponent for StateItem {
     fn draw(
         &mut self,
         target: &mut Canvas<BWRColor>,
-        values: Box<crate::dbus::DBusValueMap>,
+        values: &ApplicationState,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.old_values = values.clone();
+        self.old_state = values.clone();
 
         self.draw_icon(
             target,
@@ -74,34 +73,38 @@ impl DisplayComponent for StateItem {
         return Ok(());
     }
 
-    fn get_z_index(&self, _values: &crate::dbus::DBusValueMap) -> u32 {
+    fn get_z_index(&self, _values: &ApplicationState) -> u32 {
         20
     }
 
-    fn dbus(&self) -> Option<&dyn super::DBusConsumer> {
+    fn dbus(&self) -> Option<&dyn super::ApplicationStateConsumer> {
         Some(self)
     }
 
-    fn dbus_mut(&mut self) -> Option<&mut dyn super::DBusConsumer> {
+    fn dbus_mut(&mut self) -> Option<&mut dyn super::ApplicationStateConsumer> {
         Some(self)
     }
 }
 
-impl DBusConsumer for StateItem {
-    fn wanted_dbus_values(&self) -> Vec<&'static DBusPropertyAdress> {
-        return self.properties.clone();
-    }
+impl ApplicationStateConsumer for StateItem {
+    fn needs_refresh(&self, new_state: &ApplicationState) -> bool {
+        for property in self.properties.as_slice() {
+            let new_value = new_state
+                .map
+                .get(property)
+                .expect("Property not found in app state");
 
-    fn needs_refresh(&self, new_values: &DBusValueMap) -> bool {
-        for property in self.properties.clone() {
-            if new_values.contains_key(property) {
-                let new_v = new_values.get(property).expect("");
-                let old_v = self.old_values.get(property);
+            if let Some(new_value_type) = &new_value.value {
+                let old_value = self
+                    .old_state
+                    .map
+                    .get(property)
+                    .expect("Property not found in old app state");
 
-                match new_v {
-                    DBusValue::F64(val) => {
-                        if let Some(DBusValue::F64(old)) = old_v {
-                            if *old != *val {
+                match new_value_type {
+                    StateValueType::F64(val) => {
+                        if let Some(StateValueType::F64(old)) = old_value.value {
+                            if old == *val {
                                 continue;
                             } else {
                                 return true;
@@ -110,9 +113,9 @@ impl DBusConsumer for StateItem {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
-                    DBusValue::U64(val) => {
-                        if let Some(DBusValue::U64(old)) = old_v {
-                            if *old != *val {
+                    StateValueType::U64(val) => {
+                        if let Some(StateValueType::U64(old)) = old_value.value {
+                            if old == *val {
                                 continue;
                             } else {
                                 return true;
@@ -121,9 +124,9 @@ impl DBusConsumer for StateItem {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
-                    DBusValue::I64(val) => {
-                        if let Some(DBusValue::I64(old)) = old_v {
-                            if *old != *val {
+                    StateValueType::I64(val) => {
+                        if let Some(StateValueType::I64(old)) = old_value.value {
+                            if old == *val {
                                 continue;
                             } else {
                                 return true;
@@ -132,15 +135,21 @@ impl DBusConsumer for StateItem {
                             return true; // only new value, no old value, we should refresh
                         }
                     }
-                    _ => continue,
+                    StateValueType::STRING(val) => {
+                        if let Some(StateValueType::STRING(old)) = &old_value.value {
+                            if *old == *val {
+                                continue;
+                            } else {
+                                return true;
+                            }
+                        } else {
+                            return true; // only new value, no old value, we should refresh
+                        }
+                    }
                 };
             }
         }
         // our key was not found
         return false;
-    }
-
-    fn set_initial(&mut self, new_values: &DBusValueMap) {
-        self.old_values = Box::new(new_values.clone());
     }
 }

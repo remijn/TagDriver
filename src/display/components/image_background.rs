@@ -2,7 +2,7 @@ use embedded_canvas::Canvas;
 use embedded_graphics::{geometry::Point, image::Image, Drawable};
 use tinybmp::Bmp;
 
-use crate::display::bwr_color::BWRColor;
+use crate::{display::bwr_color::BWRColor, state::ApplicationState};
 
 use super::DisplayComponent;
 
@@ -38,13 +38,13 @@ impl DisplayComponent for ImageBackground {
     fn draw(
         &mut self,
         target: &mut Canvas<BWRColor>,
-        _values: Box<crate::dbus::DBusValueMap>,
+        _state: &ApplicationState,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Image::new(self.image.as_ref(), Point::new(0, 0)).draw(target)?;
         return Ok(());
     }
 
-    fn get_z_index(&self, _values: &crate::dbus::DBusValueMap) -> u32 {
+    fn get_z_index(&self, _state: &ApplicationState) -> u32 {
         10
     }
 }

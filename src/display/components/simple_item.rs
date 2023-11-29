@@ -2,7 +2,7 @@ use embedded_canvas::Canvas;
 use embedded_graphics::{geometry::Point, image::Image, Drawable};
 use embedded_icon::{EmbeddedIcon, Icon};
 
-use crate::display::bwr_color::BWRColor;
+use crate::{display::bwr_color::BWRColor, state::ApplicationState};
 
 use super::{DisplayComponent, IconComponent};
 
@@ -48,7 +48,7 @@ impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
     fn draw(
         &mut self,
         target: &mut Canvas<BWRColor>,
-        _values: Box<crate::dbus::DBusValueMap>,
+        _values: &ApplicationState,
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.draw_icon(
             target,
@@ -59,15 +59,15 @@ impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
         return Ok(());
     }
 
-    fn get_z_index(&self, _values: &crate::dbus::DBusValueMap) -> u32 {
+    fn get_z_index(&self, _values: &ApplicationState) -> u32 {
         20
     }
 
-    fn dbus(&self) -> Option<&dyn super::DBusConsumer> {
+    fn dbus(&self) -> Option<&dyn super::ApplicationStateConsumer> {
         None
     }
 
-    fn dbus_mut(&mut self) -> Option<&mut dyn super::DBusConsumer> {
+    fn dbus_mut(&mut self) -> Option<&mut dyn super::ApplicationStateConsumer> {
         None
     }
 }

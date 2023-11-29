@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     error::Error,
     time::{Duration, Instant},
 };
@@ -12,21 +11,19 @@ use embedded_graphics::{
 };
 
 use crate::{
-    dbus::{DBusPropertyAdress, DBusValue, DBusValueMap},
     display::{bwr_color::BWRColor, FILL_STYLE_FG, OUTLINE_STYLE_FG},
     log,
+    state::{ApplicationState, StateValueType},
 };
 
-use super::IconComponent;
-
-use super::{DBusConsumer, DisplayAreaType, DisplayComponent};
+use super::{ApplicationStateConsumer, DisplayAreaType, DisplayComponent, IconComponent};
 
 pub struct BarDialog {
     pub name: &'static str,
-    pub property: &'static DBusPropertyAdress,
+    pub property: &'static str,
     pub screen: u8,
     close_at: Instant,
-    old_values: Box<DBusValueMap>, // Values last drawn
+    old_state: ApplicationState, // Values last drawn
     _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
 }
 
@@ -34,15 +31,16 @@ const OPEN_TIME: Duration = Duration::from_secs(5);
 impl BarDialog {
     pub fn new(
         name: &'static str,
-        property: &'static DBusPropertyAdress,
+        property: &'static str,
         screen: u8,
+        initial_state: ApplicationState,
         draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
     ) -> Self {
         Self {
             name,
             property,
             screen,
-            old_values: Box::new(HashMap::new()),
+            old_state: initial_state,
             close_at: Instant::now() - OPEN_TIME,
             _draw_icon: draw_icon,
         }
@@ -65,15 +63,15 @@ impl DisplayComponent for BarDialog {
     fn get_screen(&self) -> u8 {
         self.screen
     }
-    fn dbus(&self) -> Option<&dyn DBusConsumer> {
+    fn dbus(&self) -> Option<&dyn ApplicationStateConsumer> {
         Some(self)
     }
-    fn dbus_mut(&mut self) -> Option<&mut dyn DBusConsumer> {
+    fn dbus_mut(&mut self) -> Option<&mut dyn ApplicationStateConsumer> {
         Some(self)
     }
 
-    fn get_z_index(&self, values: &DBusValueMap) -> u32 {
-        let res = values.get(&self.property);
+    fn get_z_index(&self, values: &ApplicationState) -> u32 {
+        let res = values.get(self.property);
 
         if let None = res {
             println!(
@@ -92,7 +90,7 @@ impl DisplayComponent for BarDialog {
             .as_str(),
         );
 
-        if let Some(val) = self.old_values.get(&self.property) {
+        if let Some(val) = self.old_state.get(self.property) {
             if val != value {
                 return 100; //changed value
             }
@@ -113,9 +111,9 @@ impl DisplayComponent for BarDialog {
     fn draw(
         &mut self,
         target: &mut Canvas<BWRColor>,
-        values: Box<DBusValueMap>,
+        values: &ApplicationState,
     ) -> Result<(), Box<dyn Error>> {
-        let res = values.get(&self.property);
+        let res = values.get(self.property);
         if let None = res {
             println!(
                 "{} Can't get z-index, property {} does not exist in values",
@@ -132,29 +130,31 @@ impl DisplayComponent for BarDialog {
             .as_str(),
         );
 
-        if let Some(val) = self.old_values.get(&self.property) {
+        if let Some(val) = self.old_state.get(self.property) {
             if val != value {
                 // Different value, we reset timeout and open
                 self.close_at = Instant::now() + OPEN_TIME;
             }
         }
-        self.old_values = values.clone();
+        self.old_state = values.clone();
 
         let bar_width: u32 = 155;
         let bar_height: u32 = 60;
         let bar_x: i32 = ((target.size().width - bar_width) / 2) as i32 + 30;
         let bar_y: i32 = ((target.size().height - bar_height) / 2) as i32;
 
-        let float_value = match value {
-            DBusValue::F64(val) => *val,
-            DBusValue::U64(val) => *val as f64 / 100.0,
-            DBusValue::I64(val) => *val as f64 / 100.0,
-            _ => 69.0,
-        };
-
         let icon_center = Point {
             x: bar_x - 40,
             y: (target.size().height / 2) as i32,
+        };
+
+        let float_value = match value {
+            StateValueType::F64(val) => *val,
+            StateValueType::U64(val) => *val as f64,
+            StateValueType::I64(val) => *val as f64,
+            _ => {
+                panic!("Cannot convert to f64");
+            }
         };
 
         self.draw_icon(target, float_value, icon_center);
@@ -194,46 +194,70 @@ impl DisplayComponent for BarDialog {
     }
 }
 
-impl DBusConsumer for BarDialog {
-    fn wanted_dbus_values(&self) -> Vec<&'static DBusPropertyAdress> {
-        return [self.property].to_vec();
-    }
+impl ApplicationStateConsumer for BarDialog {
+    fn needs_refresh(&self, new_state: &ApplicationState) -> bool {
+        let property = self.property;
 
-    fn needs_refresh(&self, new_values: &DBusValueMap) -> bool {
-        if new_values.contains_key(&self.property) {
-            let new_v = new_values.get(&self.property).expect("");
-            let old_v = self.old_values.get(&self.property);
+        let new_value = new_state
+            .map
+            .get(property)
+            .expect("Property not found in app state");
 
-            match new_v {
-                DBusValue::F64(val) => {
-                    if let Some(DBusValue::F64(old)) = old_v {
-                        return *old != *val; // return true if value is not the same
+        if let Some(new_value_type) = &new_value.value {
+            let old_value = self
+                .old_state
+                .map
+                .get(property)
+                .expect("Property not found in old app state");
+
+            match new_value_type {
+                StateValueType::F64(val) => {
+                    if let Some(StateValueType::F64(old)) = old_value.value {
+                        if old == *val {
+                            return false;
+                        } else {
+                            return true;
+                        }
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
                 }
-                DBusValue::U64(val) => {
-                    if let Some(DBusValue::U64(old)) = old_v {
-                        return *old != *val; // return true if value is not the same
+                StateValueType::U64(val) => {
+                    if let Some(StateValueType::U64(old)) = old_value.value {
+                        if old == *val {
+                            return false;
+                        } else {
+                            return true;
+                        }
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
                 }
-                DBusValue::I64(val) => {
-                    if let Some(DBusValue::I64(old)) = old_v {
-                        return *old != *val; // return true if value is not the same
+                StateValueType::I64(val) => {
+                    if let Some(StateValueType::I64(old)) = old_value.value {
+                        if old == *val {
+                            return false;
+                        } else {
+                            return true;
+                        }
                     } else {
                         return true; // only new value, no old value, we should refresh
                     }
                 }
-                _ => 69.0 as f64,
+                StateValueType::STRING(val) => {
+                    if let Some(StateValueType::STRING(old)) = &old_value.value {
+                        if *old == *val {
+                            return false;
+                        } else {
+                            return true;
+                        }
+                    } else {
+                        return true; // only new value, no old value, we should refresh
+                    }
+                }
             };
         }
         // our key was not found
         return false;
-    }
-
-    fn set_initial(&mut self, new_values: &DBusValueMap) {
-        self.old_values = Box::new(new_values.clone());
     }
 }
