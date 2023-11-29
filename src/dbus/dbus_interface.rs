@@ -99,8 +99,6 @@ pub async fn run_dbus_thread(
 
         let props = properties.clone();
 
-        println!("Match proxy {:?}", proxy);
-
         conn_proxy
             .match_signal(
                 move |h: PropertiesPropertiesChanged, _: &Connection, _: &Message| {

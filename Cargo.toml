@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+colored = "2.0.4"
 dbus = "0.9.7"
 dbus-tokio = "0.7.6"
 debug_print = "1.0.0"
 embedded-canvas = "0.3.0"
 embedded-graphics = "0.8.1"
-embedded-graphics-simulator = "0.5.0"
+embedded-graphics-simulator = "0.6.0"
 embedded-icon = { version = "0.0.1", features = [
     "32px",
     "48px",
@@ -35,6 +36,3 @@ tokio = { version = "1.33.0", features = [
 ] }
 tokio-serial = { version = "5.4.4", features = ["rt"] }
 tokio-stream = "0.1.14"
-
-# [features]
-# default = ["skia-safe/gl", "skia-safe/wayland", "skia-safe/textlayout"]

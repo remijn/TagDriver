@@ -11,6 +11,7 @@ mod eink;
 mod log;
 mod state;
 
+use colored::Colorize;
 use display::{
     bwr_color::BWRColor,
     bwr_display::BWRDisplay,
@@ -72,7 +73,7 @@ const SCREEN_COUNT: u8 = 3;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{}", log::WELCOME);
+    println!("{}", log::WELCOME.blue());
 
     // ////////////
     // Setup the EInk interface threads, these handle the uart
@@ -121,12 +122,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "state" => {
                     let lock = stdin_state.lock().await;
                     println!(
-                        "{}",
+                        "{}{}\n{}",
+                        log::STATE,
+                        "Application State: ".green(),
                         serde_json::to_string_pretty(&*lock).expect("cant get json")
                     );
                     drop(lock);
                 }
-                _ => println!("Unknown command {}", buffer.trim()),
+                "" => {}
+                _ => println!("{} Unknown command {}", log::WARN, buffer.trim().red()),
             }
         }
     });
