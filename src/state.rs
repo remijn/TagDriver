@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use dbus::arg::{ArgType, RefArg};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::{
-    dbus::{BusType, DBusPropertyAdress, DBusProxyAdress},
+    dbus::{networkmanager::NMDeviceState, BusType, DBusPropertyAdress, DBusProxyAdress},
     log,
 };
 
@@ -17,12 +18,47 @@ use crate::{
 //     power_state: PowerState,
 // }
 
+#[derive(Error, Debug)]
+pub enum ApplicationStateError {
+    #[error("Key '{0}' does not exist")]
+    DoesNotExistError(String),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum NetworkState {
+    Unknown,
+    Connecting,
+    Connected,
+    Disconnected,
+    Disabled,
+}
+
+impl From<NMDeviceState> for NetworkState {
+    fn from(value: NMDeviceState) -> Self {
+        match value {
+            NMDeviceState::Unavailable | NMDeviceState::Unmanaged => Self::Disabled,
+            NMDeviceState::Prepare
+            | NMDeviceState::Config
+            | NMDeviceState::NeedAuth
+            | NMDeviceState::Secondaries
+            | NMDeviceState::IpConfig
+            | NMDeviceState::IpCheck => Self::Connecting,
+            NMDeviceState::Activated => Self::Connected,
+            NMDeviceState::Disconnected | NMDeviceState::Deactivating | NMDeviceState::Failed => {
+                Self::Disconnected
+            }
+            NMDeviceState::Unknown => Self::Unknown,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum StateValueType {
     U64(u64),
     I64(i64),
     F64(f64),
     String(String),
+    NetworkState(NetworkState),
 }
 
 impl StateValueType {
@@ -55,13 +91,41 @@ impl StateValueType {
     }
 }
 
+pub trait FilterTrait {
+    fn apply(&mut self, input: StateValueType) -> StateValueType;
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct FilterMultiply {
+    pub factor: f64,
+}
+
+impl FilterTrait for FilterMultiply {
+    fn apply(&mut self, input: StateValueType) -> StateValueType {
+        match input {
+            StateValueType::U64(value) => StateValueType::F64(value as f64 * self.factor),
+            StateValueType::I64(value) => StateValueType::F64(value as f64 * self.factor),
+            StateValueType::F64(value) => StateValueType::F64(value * self.factor),
+            _ => panic!("Cannot multiply"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum Filter {
+    Multiply(FilterMultiply),
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct StateValue {
     pub value: Option<StateValueType>,
+    pub filters: Vec<Filter>,
 
     #[serde(skip_deserializing)]
     pub dbus_property: Option<&'static DBusPropertyAdress>,
 }
+
+impl StateValue {}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'static"))]
@@ -70,28 +134,89 @@ pub struct ApplicationState {
 }
 
 impl ApplicationState {
-    pub fn get_value_dbus(&self, property: &DBusPropertyAdress) -> Option<&StateValueType> {
+    pub fn get_value_dbus(
+        &self,
+        property: &DBusPropertyAdress,
+    ) -> Result<Option<StateValueType>, ApplicationStateError> {
         for value in self.map.values() {
             if value.dbus_property.is_some() && value.dbus_property.expect("") == property {
-                return value.value.as_ref();
+                return Ok(value.value.clone());
             }
         }
-        None
+        Err(ApplicationStateError::DoesNotExistError(
+            property.to_string(),
+        ))
     }
 
-    pub fn update_dbus(&mut self, property: &DBusPropertyAdress, val: &dyn RefArg) {
-        for (_key, value) in self.map.iter_mut() {
+    pub fn update_dbus(
+        &mut self,
+        property: &DBusPropertyAdress,
+        val: &dyn RefArg,
+    ) -> Result<Option<StateValueType>, ApplicationStateError> {
+        for (key, value) in self.map.iter_mut() {
             if value.dbus_property.is_some() && value.dbus_property.expect("") == property {
                 // let mut v = value.clone();
+                let old = value.value.clone();
                 value.value = Some(StateValueType::from_ref_arg(val));
+
+                println!(
+                    "{} Updated {} old: {:?}, new: {:?}",
+                    log::STATE,
+                    key,
+                    old,
+                    value.value
+                );
+
+                return Ok(old);
             }
         }
-        // for (key, value) in self.map.iter_mut() {
-        //     if value.dbus_property.is_some() && value.dbus_property.expect("") == property {
-        //         // let v = value.c;
-        //         value.value = Some(StateValueType::from_ref_arg(val));
-        //     }
-        // }
+        Err(ApplicationStateError::DoesNotExistError(
+            property.to_string(),
+        ))
+    }
+
+    pub fn update(
+        &mut self,
+        property: &str,
+        value: Option<StateValueType>,
+    ) -> Result<bool, ApplicationStateError> {
+        if !self.map.contains_key(property) {
+            return Err(ApplicationStateError::DoesNotExistError(
+                property.to_string(),
+            ));
+        }
+        let Some(state_value) = self.map.get_mut(property) else {
+            return Err(ApplicationStateError::DoesNotExistError(
+                property.to_string(),
+            ));
+        };
+        let old = state_value.value.clone();
+        let updated = old != value;
+
+        if updated {
+            println!(
+                "{} Updated {} old: {:?}, new: {:?}",
+                log::STATE,
+                property,
+                old,
+                value
+            );
+        }
+
+        state_value.value = value;
+
+        Ok(updated)
+    }
+
+    pub fn update_multiple(
+        &mut self,
+        properties: HashMap<&str, Option<StateValueType>>,
+    ) -> Result<bool, ApplicationStateError> {
+        let mut updated = false;
+        for (key, value) in properties {
+            updated |= self.update(key, value)?;
+        }
+        Ok(updated)
     }
 
     pub fn get(&self, key: &str) -> Option<&StateValueType> {
@@ -152,6 +277,7 @@ pub fn build_state_map() -> ApplicationState {
         StateValue {
             value: None,
             dbus_property: Some(&BRIGHTNESS_PROPERTY),
+            filters: vec![Filter::Multiply(FilterMultiply { factor: 100.0 })],
         },
     );
 
@@ -160,6 +286,7 @@ pub fn build_state_map() -> ApplicationState {
         StateValue {
             value: None,
             dbus_property: Some(&PLAYER_VOLUME_PROPERTY),
+            filters: vec![],
         },
     );
     map.insert(
@@ -167,6 +294,7 @@ pub fn build_state_map() -> ApplicationState {
         StateValue {
             value: None,
             dbus_property: Some(&BATTERY_LEVEL_PROPERTY),
+            filters: vec![],
         },
     );
     map.insert(
@@ -174,6 +302,32 @@ pub fn build_state_map() -> ApplicationState {
         StateValue {
             value: None,
             dbus_property: Some(&BATTERY_STATE_PROPERTY),
+            filters: vec![],
+        },
+    );
+
+    map.insert(
+        "wifi:state",
+        StateValue {
+            value: None,
+            dbus_property: None,
+            filters: vec![],
+        },
+    );
+    map.insert(
+        "wifi:strength",
+        StateValue {
+            value: None,
+            dbus_property: None,
+            filters: vec![],
+        },
+    );
+    map.insert(
+        "eth:state",
+        StateValue {
+            value: None,
+            dbus_property: None,
+            filters: vec![],
         },
     );
 

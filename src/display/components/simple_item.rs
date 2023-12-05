@@ -63,11 +63,11 @@ impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
         20
     }
 
-    fn dbus(&self) -> Option<&dyn super::ApplicationStateConsumer> {
+    fn state_consumer(&self) -> Option<&dyn super::ApplicationStateConsumer> {
         None
     }
 
-    fn dbus_mut(&mut self) -> Option<&mut dyn super::ApplicationStateConsumer> {
+    fn state_consumer_mut(&mut self) -> Option<&mut dyn super::ApplicationStateConsumer> {
         None
     }
 }

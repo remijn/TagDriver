@@ -4,6 +4,7 @@ use dbus::arg::RefArg;
 use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
 
 pub mod dbus_interface;
+pub mod networkmanager;
 mod playerctld;
 
 // Extend RefArg with Eq

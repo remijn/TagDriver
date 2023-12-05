@@ -249,6 +249,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dbus-crossroads"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a4c83437187544ba5142427746835061b330446ca8902eabd70e4afb8f76de0"
+dependencies = [
+ "dbus",
+]
+
+[[package]]
 name = "dbus-tokio"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -347,6 +356,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum_primitive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be4551092f4d519593039259a9ed8daedf0da12e5109c5280338073eaeb81180"
+dependencies = [
+ "num-traits 0.1.43",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -381,7 +399,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -545,7 +563,7 @@ dependencies = [
  "jpeg-decoder 0.1.22",
  "num-iter",
  "num-rational",
- "num-traits",
+ "num-traits 0.2.17",
  "png 0.16.8",
  "scoped_threadpool",
  "tiff",
@@ -795,12 +813,11 @@ dependencies = [
 [[package]]
 name = "networkmanager"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bc2c3495d1d015f7ad8fbbdd88a4fe329d9ee44d4bca4448e3fadf6c297876e"
+source = "git+https://github.com/exit91/networkmanager-rs.git#c941897bf7a17e05e666e23377f0ac6fbaf79752"
 dependencies = [
  "dbus",
  "num-derive",
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -834,7 +851,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
 dependencies = [
  "autocfg",
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -845,7 +862,7 @@ checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -856,7 +873,16 @@ checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.17",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e5113e9fd4cc14ded8e499429f396a20f98c772a47cc8622a736e1ec843c31"
+dependencies = [
+ "num-traits 0.2.17",
 ]
 
 [[package]]
@@ -1367,12 +1393,14 @@ version = "0.1.0"
 dependencies = [
  "colored",
  "dbus",
+ "dbus-crossroads",
  "dbus-tokio",
  "debug_print",
  "embedded-canvas",
  "embedded-graphics",
  "embedded-graphics-simulator",
  "embedded-icon",
+ "enum_primitive",
  "futures-util",
  "itertools",
  "networkmanager",
@@ -1380,10 +1408,31 @@ dependencies = [
  "serde",
  "serde_json",
  "serialport",
+ "thiserror",
  "tinybmp",
  "tokio",
  "tokio-serial",
  "tokio-stream",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9a7210f5c9a7156bb50aa36aed4c95afb51df0df00713949448cf9e97d382d2"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "266b2e40bc00e5a6c09c3584011e08b06f123c00362c92b975ba9843aaaa14b8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.38",
 ]
 
 [[package]]

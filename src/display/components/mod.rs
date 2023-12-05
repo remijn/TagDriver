@@ -43,10 +43,10 @@ pub trait DisplayComponent {
         None
     }
 
-    fn dbus(&self) -> Option<&dyn ApplicationStateConsumer> {
+    fn state_consumer(&self) -> Option<&dyn ApplicationStateConsumer> {
         None
     }
-    fn dbus_mut(&mut self) -> Option<&mut dyn ApplicationStateConsumer> {
+    fn state_consumer_mut(&mut self) -> Option<&mut dyn ApplicationStateConsumer> {
         None
     }
 }

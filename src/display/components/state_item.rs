@@ -78,11 +78,11 @@ impl DisplayComponent for StateItem {
         20
     }
 
-    fn dbus(&self) -> Option<&dyn super::ApplicationStateConsumer> {
+    fn state_consumer(&self) -> Option<&dyn super::ApplicationStateConsumer> {
         Some(self)
     }
 
-    fn dbus_mut(&mut self) -> Option<&mut dyn super::ApplicationStateConsumer> {
+    fn state_consumer_mut(&mut self) -> Option<&mut dyn super::ApplicationStateConsumer> {
         Some(self)
     }
 }
@@ -138,6 +138,17 @@ impl ApplicationStateConsumer for StateItem {
                     }
                     StateValueType::String(val) => {
                         if let Some(StateValueType::String(old)) = &old_value.value {
+                            if *old == *val {
+                                continue;
+                            } else {
+                                return true;
+                            }
+                        } else {
+                            return true; // only new value, no old value, we should refresh
+                        }
+                    }
+                    StateValueType::NetworkState(val) => {
+                        if let Some(StateValueType::NetworkState(old)) = &old_value.value {
                             if *old == *val {
                                 continue;
                             } else {

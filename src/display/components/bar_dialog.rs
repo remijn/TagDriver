@@ -64,10 +64,10 @@ impl DisplayComponent for BarDialog {
     fn get_screen(&self) -> u8 {
         self.screen
     }
-    fn dbus(&self) -> Option<&dyn ApplicationStateConsumer> {
+    fn state_consumer(&self) -> Option<&dyn ApplicationStateConsumer> {
         Some(self)
     }
-    fn dbus_mut(&mut self) -> Option<&mut dyn ApplicationStateConsumer> {
+    fn state_consumer_mut(&mut self) -> Option<&mut dyn ApplicationStateConsumer> {
         Some(self)
     }
 
@@ -233,6 +233,13 @@ impl ApplicationStateConsumer for BarDialog {
                 }
                 StateValueType::String(val) => {
                     if let Some(StateValueType::String(old)) = &old_value.value {
+                        return *old != *val;
+                    } else {
+                        return true; // only new value, no old value, we should refresh
+                    }
+                }
+                StateValueType::NetworkState(val) => {
+                    if let Some(StateValueType::NetworkState(old)) = &old_value.value {
                         return *old != *val;
                     } else {
                         return true; // only new value, no old value, we should refresh

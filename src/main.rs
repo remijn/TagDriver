@@ -4,7 +4,8 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-
+#[macro_use]
+extern crate enum_primitive;
 mod dbus;
 mod display;
 mod eink;
@@ -36,8 +37,9 @@ use embedded_icon::mdi::{
         Battery, Battery10, Battery20, Battery30, Battery40, Battery50, Battery60, Battery70,
         Battery80, Battery90, BatteryCharging10, BatteryCharging100, BatteryCharging20,
         BatteryCharging30, BatteryCharging40, BatteryCharging50, BatteryCharging60,
-        BatteryCharging70, BatteryCharging80, BatteryCharging90, BatteryOffOutline, BatteryOutline,
-        PowerPlug,
+        BatteryCharging70, BatteryCharging80, BatteryCharging90, BatteryChargingOutline,
+        BatteryOffOutline, BatteryOutline, PowerPlug, WifiStrength1, WifiStrength2, WifiStrength3,
+        WifiStrength4, WifiStrengthAlertOutline, WifiStrengthOffOutline, WifiStrengthOutline,
     },
     size48px::{
         Arch, Brightness1, Brightness2, Brightness3, Brightness4, Brightness5, Brightness6,
@@ -57,6 +59,7 @@ pub enum DisplayRotation {
 // impl Into<IconObj<T> for Icon<C, T> {}
 
 use itertools::Itertools;
+use state::NetworkState;
 use tinybmp::Bmp;
 use tokio::{
     sync::{mpsc, Mutex},
@@ -245,13 +248,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(
             |target: &mut Canvas<BWRColor>, values: &ApplicationState, center: Point| {
                 let Some(StateValueType::F64(level)) = values.get("battery:level") else {
-                    panic!("Value not f64");
+                    panic!("Value not found");
                 };
 
                 let bat_percentage = level / 100.0;
 
                 let Some(StateValueType::U64(bat_state)) = values.get("battery:state") else {
-                    panic!("Value not u64");
+                    panic!("Value not found");
                 };
                 let bat_state = match bat_state {
                     0 => BatteryState::Unknown,
@@ -351,8 +354,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .draw(target),
                             1 => Image::with_center(&BatteryCharging10::new(ICON_COLOR), center)
                                 .draw(target),
-                            _ => Image::with_center(&BatteryOutline::new(ICON_COLOR), center)
-                                .draw(target),
+                            _ => {
+                                Image::with_center(&BatteryChargingOutline::new(ICON_COLOR), center)
+                                    .draw(target)
+                            }
                         }
                         .ok();
                     }
@@ -361,6 +366,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     );
     display_components.push(&mut battery_icon);
+
+    let mut wifi_icon = StateItem::new(
+        "Wifi Icon",
+        ["wifi:state", "wifi:strength"].to_vec(),
+        0,
+        state_lock.clone(),
+        Box::new(
+            |target: &mut Canvas<BWRColor>, values: &ApplicationState, center: Point| {
+                let Some(StateValueType::NetworkState(state)) = values.get("wifi:state") else {
+                    panic!("Value not found");
+                };
+
+                match state {
+                    NetworkState::Connecting => {
+                        Image::with_center(&WifiStrengthAlertOutline::new(ICON_COLOR), center)
+                            .draw(target)
+                            .ok();
+                    }
+                    NetworkState::Connected => {
+                        let Some(StateValueType::F64(strength)) = values.get("wifi:strength")
+                        else {
+                            Image::with_center(&WifiStrengthAlertOutline::new(ICON_COLOR), center)
+                                .draw(target)
+                                .ok();
+                            return;
+                        };
+                        match strength.round() as u32 {
+                            0..=20 => {
+                                Image::with_center(&WifiStrengthOutline::new(ICON_COLOR), center)
+                                    .draw(target)
+                            }
+                            21..=40 => Image::with_center(&WifiStrength1::new(ICON_COLOR), center)
+                                .draw(target),
+                            41..=60 => Image::with_center(&WifiStrength2::new(ICON_COLOR), center)
+                                .draw(target),
+                            61..=80 => Image::with_center(&WifiStrength3::new(ICON_COLOR), center)
+                                .draw(target),
+                            81..=100 => Image::with_center(&WifiStrength4::new(ICON_COLOR), center)
+                                .draw(target),
+                            _ => Image::with_center(&WifiStrengthOutline::new(ICON_COLOR), center)
+                                .draw(target),
+                        }
+                        .ok();
+                    }
+                    _ => {
+                        Image::with_center(&WifiStrengthOffOutline::new(ICON_COLOR), center)
+                            .draw(target)
+                            .ok();
+                    }
+                }
+            },
+        ),
+    );
+    display_components.push(&mut wifi_icon);
 
     let background_small_bytes = include_bytes!("../resources/logo250.bmp");
     let background_small = Box::new(Bmp::<BWRColor>::from_slice(background_small_bytes).unwrap());
@@ -376,29 +435,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // display_components.push(&mut background_0);
     display_components.push(&mut background_1);
     display_components.push(&mut background_2);
-    // ////////////
-    // Get all the wanted dbus properties and their initial values
-    // ////////////
-
-    // let mut properties: Vec<&DBusPropertyAdress> = Vec::new();
-    // // Get all the wanted properties
-    // let iter = display_components.iter();
-    // for component in iter {
-    //     if let Some(dbus) = component.dbus() {
-    //         let mut values = dbus.wanted_dbus_values();
-    //         properties.append(&mut values);
-    //     }
-    // }
-
-    // // Set the initial values for the components
-    // // for component in display_components.iter_mut() {
-    // //     if let Some(dbus) = component.dbus_mut() {
-    // //         dbus.set_initial(&initial);
-    // //     }
-    // // }
-    // ////////////
-    // Start the dbus thread
-    // ////////////
 
     drop(state_lock);
 
@@ -420,9 +456,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for component in display_components.iter() {
                 let mut component_needs_refresh = false;
 
-                if let Some(dbus) = component.dbus() {
-                    // Is updated needed by dbus?
-                    component_needs_refresh = dbus.needs_refresh(&state_lock);
+                if let Some(state_consumer) = component.state_consumer() {
+                    // Is updated needed by state consumer?
+                    component_needs_refresh = state_consumer.needs_refresh(&state_lock);
                 }
 
                 if component_needs_refresh {
@@ -550,6 +586,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             drop(values);
 
             let (black, _red4) = display.get_fixed_buffer();
+
+            interface.black_border = true;
 
             // Stupid hack to force full-refresh the right screen
             if !interface._port.ends_with("if00") {
