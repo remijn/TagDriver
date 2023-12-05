@@ -330,6 +330,22 @@ pub fn build_state_map() -> ApplicationState {
             filters: vec![],
         },
     );
+    map.insert(
+        "workspace:active",
+        StateValue {
+            value: None,
+            dbus_property: None,
+            filters: vec![],
+        },
+    );
+    map.insert(
+        "workspace:count",
+        StateValue {
+            value: None,
+            dbus_property: None,
+            filters: vec![],
+        },
+    );
 
     ApplicationState { map }
 }

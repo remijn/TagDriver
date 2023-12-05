@@ -19,7 +19,14 @@ pub trait RefArgEq: RefArg + Eq + PartialEq + Clone {
 // Implement RefArgEq for any type that implements RefArg
 impl<T: RefArg + Eq + PartialEq + Clone> RefArgEq for T {}
 
-type DBusUpdate = (&'static DBusPropertyAdress, Option<Box<dyn RefArg>>);
+type DBusPropertyUpdate = (&'static DBusPropertyAdress, Option<Box<dyn RefArg>>);
+
+#[derive(Debug)]
+pub enum DBusUpdate {
+    PropertyUpdate(DBusPropertyUpdate),
+    MethodShowImage(String, u32),
+    MethodSetWorkspaces(u32, u32),
+}
 
 #[allow(dead_code)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]

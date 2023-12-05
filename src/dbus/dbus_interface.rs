@@ -4,10 +4,12 @@ use dbus::{
         stdintf::{self, org_freedesktop_dbus::Properties},
         Connection,
     },
+    channel::MatchingReceiver,
     Message,
 };
 
-// use dbus_crossroads::Crossroads;
+use dbus_crossroads::{Context, Crossroads};
+use itertools::Itertools;
 use networkmanager::{
     devices::{Any, Device, Wireless},
     NetworkManager,
@@ -111,15 +113,80 @@ pub async fn run_dbus_thread(
 
     // Start the DBus Server
 
-    // system_conn.request_name("com.example.dbustest", false, true, false)?;
+    session_conn.request_name("io.remijn.tagdriver", false, true, false)?;
 
-    // let mut cr = Crossroads::new();
-    // cr.set_async_support(Some((
-    //     system_conn.clone(),
-    //     Box::new(|x| {
-    //         tokio::spawn(x);
-    //     }),
-    // )));
+    let mut cr = Crossroads::new();
+
+    // Let's build a new interface, which can be used for "Hello" objects.
+    let iface_token = cr.register("io.remijn.tagdriver", |b| {
+        // This row advertises (when introspected) that we can send a HelloHappened signal.
+        // We use the single-tuple to say that we have one single argument, named "sender" of type "String".
+        // The msg_fn returns a boxed function, which when called constructs the message to be emitted.
+        // let state_changed = b.signal::<(String,), _>("StateChanged", ("json",)).msg_fn();
+
+        // Let's add a method to the interface. We have the method name, followed by
+        // names of input and output arguments (used for introspection). The closure then controls
+        // the types of these arguments. The last argument to the closure is a tuple of the input arguments.
+
+        let clone_tx = tx.clone();
+        b.method(
+            "SetImage",
+            ("png", "display"),
+            ("reply",),
+            move |_ctx: &mut Context,
+                  _state: &mut Arc<Mutex<ApplicationState>>,
+                  (png, display): (String, u32)| {
+                // And here's what happens when the method is called.
+                println!("{} SetImage called for display {}", log::DBUS, display);
+
+                clone_tx
+                    .try_send(vec![DBusUpdate::MethodShowImage(png, display)])
+                    .expect("Could not send");
+                let reply = format!("Display on screen {}", display);
+                Ok((reply,))
+            },
+        );
+        let clone_tx = tx.clone();
+        b.method(
+            "SetWorkspaces",
+            ("active", "count"),
+            ("reply",),
+            move |_ctx: &mut Context,
+                  _state: &mut Arc<Mutex<ApplicationState>>,
+                  (active, count): (u32, u32)| {
+                // And here's what happens when the method is called.
+                let mut workspaces = vec![false; count as usize];
+                workspaces[active as usize] = true;
+                let string_indicator = workspaces
+                    .iter()
+                    .map(|v| match v {
+                        true => "🔵",
+                        false => "⚪",
+                    })
+                    .join("");
+
+                println!(
+                    "{} Method SetWorkspaces called {}",
+                    log::DBUS,
+                    string_indicator
+                );
+
+                clone_tx
+                    .try_send(vec![DBusUpdate::MethodSetWorkspaces(active, count)])
+                    .expect("Could not send");
+                Ok(("ok",))
+            },
+        );
+    });
+    cr.insert("/", &[iface_token], state.clone());
+
+    session_conn.start_receive(
+        dbus::message::MatchRule::new_method_call(),
+        Box::new(move |msg, conn| {
+            cr.handle_message(msg, conn).unwrap();
+            true
+        }),
+    );
 
     let mut state_lock: tokio::sync::MutexGuard<'_, ApplicationState> = state.lock().await;
 
@@ -139,8 +206,6 @@ pub async fn run_dbus_thread(
     // Get initial values and start listening for updates
     for proxy in proxies {
         println!("{} Init Proxy {} {}", log::DBUS, proxy.dest, proxy.path);
-
-        let clone_tx = tx.clone();
 
         // let clone_proxy: DBusProxyAdress = proxy.clone();
 
@@ -176,6 +241,8 @@ pub async fn run_dbus_thread(
 
         let props = properties.clone();
 
+        let clone_tx = tx.clone();
+
         conn_proxy
             .match_signal(
                 move |h: PropertiesPropertiesChanged, _: &Connection, _: &Message| {
@@ -192,7 +259,10 @@ pub async fn run_dbus_thread(
                                 && prop.interface == iface.as_str()
                                 && prop.property == key.as_str()
                             {
-                                updates.push((prop, Some(value.0.box_clone())));
+                                updates.push(DBusUpdate::PropertyUpdate((
+                                    prop,
+                                    Some(value.0.box_clone()),
+                                )));
                             }
                         }
 
@@ -236,37 +306,37 @@ pub async fn run_dbus_thread(
                 continue;
             }
             let mut state_lock = state.lock().await;
-            for (key, new_value_option) in dbus_values {
-                let old_value = state_lock.get_value_dbus(key)?;
+            for update in dbus_values {
+                match update {
+                    DBusUpdate::PropertyUpdate((key, new_value_option)) => {
+                        let old_value = state_lock.get_value_dbus(key)?;
 
-                match old_value {
-                    Some(_val) if new_value_option.is_some() => {
+                        match old_value {
+                            Some(_val) if new_value_option.is_some() => {
+                                state_lock
+                                    .update_dbus(key, &new_value_option.expect(""))
+                                    .expect("Error applying DBus update to state");
+                                updated = true;
+                            }
+                            Some(_val) => println!("{} Recieved empty value????", log::ERROR),
+                            None => {
+                                println!(
+                                    "{} Could not match into Application state: \n{} {}",
+                                    log::WARN,
+                                    log::DBUS,
+                                    key
+                                );
+                            }
+                        }
+                    }
+                    DBusUpdate::MethodShowImage(_png, display) => {
+                        print!("update method show image on display {}", display);
+                    }
+                    DBusUpdate::MethodSetWorkspaces(active, count) => {
                         state_lock
-                            .update_dbus(key, &new_value_option.expect(""))
-                            .expect("Error applying DBus update to state");
-                        updated = true;
-                        // value = new_value_option.expect("impossible").box_clone();
-                    } // let Some(new_value) = new_value_option => {}
-                    Some(_val) => println!("{} Recieved empty value????", log::ERROR),
-                    None => {
-                        println!(
-                            "{} Could not match into Application state: \n{} {}",
-                            log::WARN,
-                            log::DBUS,
-                            key
-                        );
-
-                        // let matches = state
-                        //     .keys()
-                        //     .filter(|k| {
-                        //         k.property == key.property || k.interface == key.interface
-                        //     })
-                        //     .into_iter();
-
-                        // println!("{} Did you mean any of these:", log::WARN);
-                        // for match_item in matches {
-                        //     println!(" - {} {}", log::DBUS, match_item);
-                        // }
+                            .update("workspace:active", Some(StateValueType::U64(active as u64)))?;
+                        state_lock
+                            .update("workspace:count", Some(StateValueType::U64(count as u64)))?;
                     }
                 }
             }
