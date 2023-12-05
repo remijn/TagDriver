@@ -28,7 +28,6 @@ pub enum DBusUpdate {
     MethodSetWorkspaces(u32, u32),
 }
 
-#[allow(dead_code)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum BusType {
     Session,

@@ -29,24 +29,10 @@ use stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged;
 use crate::{
     dbus::networkmanager::NMDeviceState,
     log,
-    state::{ApplicationState, NetworkState, StateValueType},
+    state::{app::ApplicationState, value::NetworkState, value::StateValueType},
 };
 
 use super::{BusType, DBusPropertyAdress, DBusProxyAdress, DBusUpdate};
-
-#[allow(dead_code)]
-fn print_refarg(value: &dyn RefArg) {
-    // We don't know what type the value is. We'll try a few and fall back to
-    // debug printing if the value is more complex than that.
-
-    if let Some(s) = value.as_str() {
-        println!("{}", s);
-    } else if let Some(i) = value.as_i64() {
-        println!("{}", i);
-    } else {
-        println!("{:?}", value);
-    }
-}
 
 fn update_data_nm(
     system_conn: &Connection,

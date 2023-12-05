@@ -2,7 +2,7 @@ use embedded_canvas::Canvas;
 use embedded_graphics::{geometry::Point, image::Image, Drawable};
 use embedded_icon::{EmbeddedIcon, Icon};
 
-use crate::{display::bwr_color::BWRColor, state::ApplicationState};
+use crate::{display::bwr_color::BWRColor, state::app::ApplicationState};
 
 use super::{DisplayComponent, IconComponent};
 

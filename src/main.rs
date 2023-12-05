@@ -59,7 +59,7 @@ pub enum DisplayRotation {
 // impl Into<IconObj<T> for Icon<C, T> {}
 
 use itertools::Itertools;
-use state::NetworkState;
+use state::value::NetworkState;
 use tinybmp::Bmp;
 use tokio::{
     sync::{mpsc, Mutex},
@@ -69,7 +69,7 @@ use tokio::{
 use crate::{
     dbus::dbus_interface::run_dbus_thread,
     display::components::{simple_item::SimpleItem, state_item::StateItem},
-    state::{build_state_map, ApplicationState, StateValueType},
+    state::{app::ApplicationState, build_state_map, value::StateValueType},
 };
 
 const SCREEN_COUNT: u8 = 3;
@@ -585,7 +585,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             drop(values);
 
-            let (black, _red4) = display.get_fixed_buffer();
+            let (black, _red) = display.get_fixed_buffer();
 
             interface.black_border = true;
 

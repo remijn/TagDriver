@@ -14,4 +14,4 @@ pub const RENDER: &str = "🎨";
 pub const DBUS: &str = "🔗";
 pub const ERROR: &str = "❗️";
 pub const WARN: &str = "❓️";
-pub const STATE: &str = "💾 ";
+pub const STATE: &str = "💾";

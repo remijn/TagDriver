@@ -4,7 +4,7 @@ use embedded_graphics::geometry::Point;
 
 use crate::{
     display::bwr_color::BWRColor,
-    state::{ApplicationState, StateValueType},
+    state::{app::ApplicationState, value::StateValueType},
 };
 
 use super::{ApplicationStateConsumer, DisplayComponent, IconComponent};
@@ -95,16 +95,17 @@ impl ApplicationStateConsumer for StateItem {
                 .get(property)
                 .expect("Property not found in app state");
 
-            if let Some(new_value_type) = &new_value.value {
+            if let Some(new_value_type) = &new_value.get() {
                 let old_value = self
                     .old_state
                     .map
                     .get(property)
-                    .expect("Property not found in old app state");
+                    .expect("Property not found in old app state")
+                    .get();
 
                 match new_value_type {
                     StateValueType::F64(val) => {
-                        if let Some(StateValueType::F64(old)) = old_value.value {
+                        if let Some(StateValueType::F64(old)) = old_value {
                             if old == *val {
                                 continue;
                             } else {
@@ -115,7 +116,7 @@ impl ApplicationStateConsumer for StateItem {
                         }
                     }
                     StateValueType::U64(val) => {
-                        if let Some(StateValueType::U64(old)) = old_value.value {
+                        if let Some(StateValueType::U64(old)) = old_value {
                             if old == *val {
                                 continue;
                             } else {
@@ -126,7 +127,7 @@ impl ApplicationStateConsumer for StateItem {
                         }
                     }
                     StateValueType::I64(val) => {
-                        if let Some(StateValueType::I64(old)) = old_value.value {
+                        if let Some(StateValueType::I64(old)) = old_value {
                             if old == *val {
                                 continue;
                             } else {
@@ -137,7 +138,7 @@ impl ApplicationStateConsumer for StateItem {
                         }
                     }
                     StateValueType::String(val) => {
-                        if let Some(StateValueType::String(old)) = &old_value.value {
+                        if let Some(StateValueType::String(old)) = &old_value {
                             if *old == *val {
                                 continue;
                             } else {
@@ -148,7 +149,7 @@ impl ApplicationStateConsumer for StateItem {
                         }
                     }
                     StateValueType::NetworkState(val) => {
-                        if let Some(StateValueType::NetworkState(old)) = &old_value.value {
+                        if let Some(StateValueType::NetworkState(old)) = &old_value {
                             if *old == *val {
                                 continue;
                             } else {

@@ -8,7 +8,7 @@ pub mod state_item;
 use embedded_canvas::Canvas;
 use embedded_graphics::prelude::Point;
 
-use crate::state::ApplicationState;
+use crate::state::app::ApplicationState;
 
 use super::bwr_color::BWRColor;
 
