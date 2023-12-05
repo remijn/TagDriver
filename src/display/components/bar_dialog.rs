@@ -154,7 +154,7 @@ impl DisplayComponent for BarDialog {
             _ => {
                 panic!("Cannot convert to f64");
             }
-        };
+        } / 100.0;
 
         self.draw_icon(target, float_value, icon_center);
 

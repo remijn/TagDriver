@@ -168,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state_lock.clone(),
         Box::new(|target: &mut Canvas<BWRColor>, val, center| {
             // const color = BWRColor::Off;
-            match (val * BRIGHTNESS_ICON_COUNT as f64).floor() as u32 {
+            match (val * BRIGHTNESS_ICON_COUNT as f64).round() as u32 {
                 6 => Image::with_center(&Brightness7::new(ICON_COLOR), center).draw(target),
                 5 => Image::with_center(&Brightness6::new(ICON_COLOR), center).draw(target),
                 4 => Image::with_center(&Brightness5::new(ICON_COLOR), center).draw(target),

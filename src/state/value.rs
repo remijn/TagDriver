@@ -184,12 +184,15 @@ impl StateValue {
                 Filter::Round(filter) if value.is_some() => {
                     value = Some(filter.apply(value.unwrap()));
                 }
+
+                _ if value.is_none() => break,
+
                 _ => {
                     println!(
-                        "{} Filter {:?} cannot be used on {:?}",
+                        "{} Filter {:?} cannot be used on {}",
                         log::ERROR,
                         filter,
-                        value
+                        value.clone().unwrap()
                     );
                 }
             }
