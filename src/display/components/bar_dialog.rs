@@ -22,7 +22,7 @@ use super::{ApplicationStateConsumer, DisplayAreaType, DisplayComponent, IconCom
 pub struct BarDialog {
     pub name: &'static str,
     pub property: &'static str,
-    pub screen: u8,
+    pub display: u8,
     close_at: Instant,
     old_state: ApplicationState, // Values last drawn
     _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
@@ -33,14 +33,14 @@ impl BarDialog {
     pub fn new(
         name: &'static str,
         property: &'static str,
-        screen: u8,
+        display: u8,
         initial_state: ApplicationState,
         draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, f64, Point)>,
     ) -> Self {
         Self {
             name,
             property,
-            screen,
+            display,
             old_state: initial_state,
             close_at: Instant::now() - OPEN_TIME,
             _draw_icon: draw_icon,
@@ -61,8 +61,8 @@ impl DisplayComponent for BarDialog {
     fn get_type(&self) -> DisplayAreaType {
         DisplayAreaType::Dialog
     }
-    fn get_screen(&self) -> u8 {
-        self.screen
+    fn get_display(&self) -> u8 {
+        self.display
     }
     fn state_consumer(&self) -> Option<&dyn ApplicationStateConsumer> {
         Some(self)

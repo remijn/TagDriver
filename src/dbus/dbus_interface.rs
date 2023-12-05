@@ -128,7 +128,7 @@ pub async fn run_dbus_thread(
                 clone_tx
                     .try_send(vec![DBusUpdate::MethodShowImage(png, display)])
                     .expect("Could not send");
-                let reply = format!("Display on screen {}", display);
+                let reply = format!("Drawing on display {}", display);
                 Ok((reply,))
             },
         );

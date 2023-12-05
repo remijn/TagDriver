@@ -1,6 +1,4 @@
-use crate::DisplayRotation;
-
-use super::bwr_color::BWRColor;
+use super::{bwr_color::BWRColor, DisplayRotation};
 
 use embedded_graphics::prelude::*;
 

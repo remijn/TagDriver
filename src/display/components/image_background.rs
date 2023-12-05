@@ -8,23 +8,23 @@ use super::DisplayComponent;
 
 pub struct ImageBackground {
     pub name: &'static str,
-    pub screen: u8,
+    pub display: u8,
     image: Box<Bmp<'static, BWRColor>>,
 }
 
 impl ImageBackground {
-    pub fn new(name: &'static str, screen: u8, image: Box<Bmp<'static, BWRColor>>) -> Self {
+    pub fn new(name: &'static str, display: u8, image: Box<Bmp<'static, BWRColor>>) -> Self {
         Self {
             name,
-            screen,
+            display,
             image,
         }
     }
 }
 
 impl DisplayComponent for ImageBackground {
-    fn get_screen(&self) -> u8 {
-        self.screen
+    fn get_display(&self) -> u8 {
+        self.display
     }
 
     fn get_type(&self) -> super::DisplayAreaType {

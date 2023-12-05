@@ -49,8 +49,8 @@ impl EInkInterface {
     #[allow(dead_code)]
     pub(crate) async fn full(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
         println!(
-            "{} Full display on screen {}",
-            log::SCREEN,
+            "{} Full draw on display {}",
+            log::DISPLAY,
             self._port.split('_').last().or(Some(self._port)).expect("")
         );
         self.send_command(EInkCommand::Show {
@@ -69,8 +69,8 @@ impl EInkInterface {
     #[allow(dead_code)]
     pub(crate) async fn fast(&mut self, buffer: Vec<u8>) -> Result<(), SendError<EInkCommand>> {
         println!(
-            "{} Fast display on screen {}",
-            log::SCREEN,
+            "{} Fast draw on display {}",
+            log::DISPLAY,
             self._port.split('_').last().or(Some(self._port)).expect("")
         );
         self.send_command(EInkCommand::Show {
@@ -95,6 +95,11 @@ impl EInkInterface {
         width: u32,
         height: u32,
     ) -> Result<(), SendError<EInkCommand>> {
+        println!(
+            "{} Partial draw on display {}",
+            log::DISPLAY,
+            self._port.split('_').last().or(Some(self._port)).expect("")
+        );
         self.send_command(EInkCommand::Show {
             buffer,
             x,

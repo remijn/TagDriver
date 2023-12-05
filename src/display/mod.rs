@@ -10,6 +10,14 @@ use self::bwr_color::BWRColor;
 use embedded_graphics::{mono_font::MonoTextStyle, primitives::*};
 use profont::PROFONT_24_POINT;
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum DisplayRotation {
+    Zero,
+    Rotate90,
+    Rotate180,
+    Rotate270,
+}
+
 pub const COLOR_BG: BWRColor = BWRColor::Off;
 pub const COLOR_FG: BWRColor = BWRColor::On;
 

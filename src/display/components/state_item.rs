@@ -12,7 +12,7 @@ use super::{ApplicationStateConsumer, DisplayComponent, IconComponent};
 pub struct StateItem {
     pub name: &'static str,
     pub properties: Vec<&'static str>,
-    pub screen: u8,
+    pub display: u8,
     pub width: u32,
     pub height: u32,
     old_state: ApplicationState, // Values last drawn
@@ -23,13 +23,13 @@ impl StateItem {
     pub fn new(
         name: &'static str,
         properties: Vec<&'static str>,
-        screen: u8,
+        display: u8,
         initial_state: ApplicationState,
         draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, &ApplicationState, Point)>,
     ) -> Self {
         Self {
             name,
-            screen,
+            display,
             width: 50,
             height: 50,
             old_state: initial_state,
@@ -46,8 +46,8 @@ impl IconComponent for StateItem {
 }
 
 impl DisplayComponent for StateItem {
-    fn get_screen(&self) -> u8 {
-        self.screen
+    fn get_display(&self) -> u8 {
+        self.display
     }
 
     fn get_type(&self) -> super::DisplayAreaType {
