@@ -91,6 +91,7 @@ pub fn build_state_map() -> ApplicationState {
     map.insert("eth:state", StateValue::new(None));
     map.insert("workspace:active", StateValue::new(None));
     map.insert("workspace:count", StateValue::new(None));
+    map.insert("rear-image-path", StateValue::new(None));
 
     ApplicationState { map }
 }

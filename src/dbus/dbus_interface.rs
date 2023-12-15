@@ -85,7 +85,7 @@ fn update_data_nm(
 }
 
 pub async fn run_dbus_thread(
-    update_tx: Sender<bool>,
+    update_tx: Sender<()>,
     state: Arc<Mutex<ApplicationState>>,
 ) -> Result<(), Box<dyn Error>> {
     let session_conn = Connection::new_session().expect("Error connecting to Session DBus");
@@ -330,7 +330,7 @@ pub async fn run_dbus_thread(
         }
         if updated {
             update_tx
-                .send(true)
+                .send(())
                 .await
                 .expect("Could not send dbus update");
         }

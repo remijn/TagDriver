@@ -77,9 +77,10 @@ impl ApplicationState {
             ));
         };
         let old = state_value.clone();
-        let updated = old.get() != value;
 
-        state_value.set(value);
+        let new = state_value.set(value);
+
+        let updated = old.get_ref() != new;
 
         if updated {
             print_update(property, &old, state_value);

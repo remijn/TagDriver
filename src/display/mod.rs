@@ -18,6 +18,13 @@ pub enum DisplayRotation {
     Rotate270,
 }
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum DisplayFlip {
+    None,
+    Horizontal,
+    Vertical,
+}
+
 pub const COLOR_BG: BWRColor = BWRColor::Off;
 pub const COLOR_FG: BWRColor = BWRColor::On;
 

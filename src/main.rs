@@ -35,7 +35,7 @@ use tokio::{
 use crate::{
     dbus::dbus_interface::run_dbus_thread,
     display::{components::make_ui_components, DisplayRotation},
-    state::build_state_map,
+    state::{build_state_map, value::StateValueType},
 };
 
 const DISPLAY_COUNT: u8 = 3;
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut displays = [
         (
-            BWRDisplay::new(250, 122, DisplayRotation::Zero),
+            BWRDisplay::new(250, 122, DisplayRotation::Zero, display::DisplayFlip::None),
             start_eink_thread(
                 "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if00",
                 912600,
@@ -59,7 +59,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?,
         ),
         (
-            BWRDisplay::new(250, 122, DisplayRotation::Rotate180),
+            BWRDisplay::new(
+                250,
+                122,
+                DisplayRotation::Rotate180,
+                display::DisplayFlip::None,
+            ),
             start_eink_thread(
                 "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if04",
                 912600,
@@ -68,7 +73,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?,
         ),
         (
-            BWRDisplay::new(400, 300, DisplayRotation::Rotate270),
+            BWRDisplay::new(
+                400,
+                300,
+                DisplayRotation::Rotate270,
+                display::DisplayFlip::Horizontal,
+            ),
             start_eink_thread(
                 "/dev/serial/by-id/usb-RemijnPi_Eink_Driver_DE6270431F67292B-if02",
                 912600,
@@ -82,13 +92,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = Arc::new(Mutex::new(build_state_map()));
 
+    let (state_update_tx, mut state_update_rx) = mpsc::channel::<()>(20);
+
     // Star the stdin thread
     let stdin_state = state.clone();
+    let stdin_update_tx = state_update_tx.clone();
     tokio::spawn(async move {
         loop {
             let mut buffer = String::new();
             io::stdin().read_line(&mut buffer).unwrap();
-            match buffer.trim() {
+
+            let input = buffer.trim();
+
+            let parts: Vec<&str> = input.split(' ').collect();
+
+            if parts.is_empty() {
+                continue;
+            }
+
+            let first = *parts.first().unwrap();
+
+            match first {
                 "state" => {
                     let lock = stdin_state.lock().await;
                     println!(
@@ -99,7 +123,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                     drop(lock);
                 }
-                "" => {}
+                "show" if parts.len() > 1 => {
+                    let mut lock = stdin_state.lock().await;
+
+                    let updated = lock
+                        .update(
+                            "rear-image-path",
+                            Some(StateValueType::String(parts.get(1).unwrap().to_string())),
+                        )
+                        .expect("Could not set rear display image");
+                    drop(lock);
+                    if updated {
+                        stdin_update_tx.send(()).await.unwrap();
+                    }
+                }
+                "show" if parts.len() == 1 => {
+                    let updated = stdin_state
+                        .lock()
+                        .await
+                        .update("rear-image-path", None)
+                        .expect("Count not reset rear display image");
+                    if updated {
+                        stdin_update_tx.send(()).await.unwrap();
+                    }
+                }
                 _ => println!("{} Unknown command {}", log::WARN, buffer.trim().red()),
             }
         }
@@ -107,9 +154,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start the dbus thread
     let dbus_state = state.clone();
-    let (dbus_tx, mut dbus_rx) = mpsc::channel::<bool>(20);
+    let dbus_update_tx = state_update_tx.clone();
     tokio::spawn(async move {
-        run_dbus_thread(dbus_tx, dbus_state)
+        run_dbus_thread(dbus_update_tx, dbus_state)
             .await
             .expect("DBus thread crashed");
     });
@@ -132,9 +179,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let mut display_needs_refresh: Vec<bool> = [false; DISPLAY_COUNT as usize].to_vec().clone();
 
-        // Proccess dmesg updates for each component and
+        // Proccess state updates for each component and
         // set refresh for the displays with the components that need it
-        while let Ok(_has_new) = dbus_rx.try_recv() {
+        while state_update_rx.try_recv().is_ok() {
             // We have new values, check with each component if this new state requires a refresh
             let state_lock = state.lock().await;
 

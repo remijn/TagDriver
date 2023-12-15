@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{error::Error, time::Instant};
+use std::{error::Error, path::Path, time::Instant};
 
 pub mod bar_dialog;
 pub mod image_background;
@@ -35,7 +35,9 @@ use tinybmp::Bmp;
 use crate::{
     display::{
         components::{
-            bar_dialog::BarDialog, image_background::ImageBackground, simple_item::SimpleItem,
+            bar_dialog::BarDialog,
+            image_background::{LoadingImageBackground, StaticImageBackground},
+            simple_item::SimpleItem,
             state_item::StateItem,
         },
         COLOR_FG,
@@ -356,16 +358,34 @@ pub fn make_ui_components(state: ApplicationState) -> Vec<Box<dyn DisplayCompone
     let background_small_bytes = include_bytes!("../../../resources/logo250.bmp");
     let background_small = Box::new(Bmp::<BWRColor>::from_slice(background_small_bytes).unwrap());
 
-    let background_large_bytes = include_bytes!("../../../resources/logo400.bmp");
-    let background_large = Box::new(Bmp::<BWRColor>::from_slice(background_large_bytes).unwrap());
+    // let background_large_bytes = include_bytes!("../../../resources/logo400.bmp");
+    // let background_large = Box::new(Bmp::<BWRColor>::from_slice(background_large_bytes).unwrap());
 
     // let mut background_0 = ImageBackground::new("Background 1", 0, background_small.clone());
-    let background_1 = ImageBackground::new("Background 1", 1, background_small.clone());
-    let background_2 = ImageBackground::new("Background 2", 2, background_large.clone());
+    let background_1 = StaticImageBackground::new("Background 1", 1, background_small.clone());
+    // let background_2 = StaticImageBackground::new("Background 2", 2, background_large.clone());
+
+    let background_3 = LoadingImageBackground::new(
+        "Background 2.5",
+        2,
+        Size::new(400, 300),
+        "rear-image-path",
+        state.clone(),
+        Path::new("/home/nick/tags/img/400/"),
+    );
+
+    // background_3
+    //     .load_image("/home/nick/tags/img/400/bobr.png".to_string())
+    //     .unwrap();
 
     // display_components.push(&mut background_0);
     ui_components.push(Box::new(background_1));
-    ui_components.push(Box::new(background_2));
+    // ui_components.push(Box::new(background_2));
+
+    ui_components.push(Box::new(background_3));
+
+    // let arrow_icon = SimpleItem::new("Arrow test icon", 2, ArrowLeftThick::new(ICON_COLOR));
+    // ui_components.push(Box::new(arrow_icon));
 
     ui_components
 }

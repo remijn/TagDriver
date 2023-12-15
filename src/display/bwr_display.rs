@@ -1,4 +1,4 @@
-use super::{bwr_color::BWRColor, DisplayRotation};
+use super::{bwr_color::BWRColor, DisplayFlip, DisplayRotation};
 
 use embedded_graphics::prelude::*;
 
@@ -10,10 +10,11 @@ pub struct BWRDisplay {
     buffer_height: u32, // black_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
     // red_buffer: [u8; (WIDTH * HEIGHT / 8) as usize],
     rotate: DisplayRotation,
+    flip: DisplayFlip,
 }
 
 impl BWRDisplay {
-    pub fn new(width: u32, height: u32, rotate: DisplayRotation) -> Self {
+    pub fn new(width: u32, height: u32, rotate: DisplayRotation, flip: DisplayFlip) -> Self {
         let mut buffer_height: u32 = height;
 
         if rotate == DisplayRotation::Rotate90 || rotate == DisplayRotation::Rotate270 {
@@ -32,6 +33,7 @@ impl BWRDisplay {
             height,
             buffer_height,
             rotate,
+            flip,
         }
     }
 
@@ -114,6 +116,16 @@ impl DrawTarget for BWRDisplay {
             {
                 cx = -cx + (self.width as i32 - 1);
                 cy = -cy + (self.height as i32 - 1);
+            }
+
+            match self.flip {
+                DisplayFlip::Horizontal => {
+                    cx = -cx + (self.width as i32 - 1);
+                }
+                DisplayFlip::Vertical => {
+                    cy = -cy + (self.height as i32 - 1);
+                }
+                DisplayFlip::None => {}
             }
 
             if self.rotate == DisplayRotation::Rotate90 || self.rotate == DisplayRotation::Rotate270
