@@ -7,7 +7,7 @@ pub mod value;
 
 use app::ApplicationState;
 
-use self::value::{Filter, FilterMultiply, FilterRound, StateValue};
+use self::value::{Filter, FilterMultiply, FilterRound, StateValue, StateValueType};
 
 // pub struct PowerState {
 //     battery_percentage: u32,
@@ -89,8 +89,14 @@ pub fn build_state_map() -> ApplicationState {
         StateValue::filtered(None, vec![Filter::Round(FilterRound { to: 20.0 })]),
     );
     map.insert("eth:state", StateValue::new(None));
-    map.insert("workspace:active", StateValue::new(None));
-    map.insert("workspace:count", StateValue::new(None));
+    map.insert(
+        "workspace:active",
+        StateValue::new(Some(StateValueType::U64(0))),
+    );
+    map.insert(
+        "workspace:count",
+        StateValue::new(Some(StateValueType::U64(1))),
+    );
     map.insert("rear-image-path", StateValue::new(None));
 
     ApplicationState { map }

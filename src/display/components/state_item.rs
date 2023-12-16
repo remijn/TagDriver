@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 use embedded_canvas::Canvas;
-use embedded_graphics::geometry::Point;
+use embedded_graphics::geometry::{Point, Size};
 
 use crate::{
     display::bwr_color::BWRColor,
@@ -13,8 +13,7 @@ pub struct StateItem {
     pub name: &'static str,
     pub properties: Vec<&'static str>,
     pub display: u8,
-    pub width: u32,
-    pub height: u32,
+    pub size: Size,
     old_state: ApplicationState, // Values last drawn
     _draw_icon: Box<dyn Fn(&mut Canvas<BWRColor>, &ApplicationState, Point)>,
 }
@@ -30,8 +29,7 @@ impl StateItem {
         Self {
             name,
             display,
-            width: 50,
-            height: 50,
+            size: Size::new(50, 50),
             old_state: initial_state,
             properties,
             _draw_icon: draw_icon,
@@ -51,7 +49,7 @@ impl DisplayComponent for StateItem {
     }
 
     fn get_type(&self) -> super::DisplayAreaType {
-        super::DisplayAreaType::Area(self.width, self.height)
+        super::DisplayAreaType::Icon(self.size)
     }
 
     fn get_name(&self) -> &str {
@@ -65,11 +63,9 @@ impl DisplayComponent for StateItem {
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.old_state = values.clone();
 
-        self.draw_icon(
-            target,
-            100.0,
-            Point::new(self.width as i32 / 2, self.height as i32 / 2),
-        );
+        let center = Point::new((self.size.width / 2) as i32, (self.size.height / 2) as i32);
+
+        self.draw_icon(target, 100.0, center);
 
         Ok(())
     }

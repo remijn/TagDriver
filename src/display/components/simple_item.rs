@@ -1,5 +1,9 @@
 use embedded_canvas::Canvas;
-use embedded_graphics::{geometry::Point, image::Image, Drawable};
+use embedded_graphics::{
+    geometry::{Point, Size},
+    image::Image,
+    Drawable,
+};
 use embedded_icon::{EmbeddedIcon, Icon};
 
 use crate::{display::bwr_color::BWRColor, state::app::ApplicationState};
@@ -9,8 +13,7 @@ use super::{DisplayComponent, IconComponent};
 pub struct SimpleItem<T: EmbeddedIcon> {
     pub name: &'static str,
     pub display: u8,
-    pub width: u32,
-    pub height: u32,
+    pub size: Size,
     pub icon: Icon<BWRColor, T>,
 }
 
@@ -19,8 +22,7 @@ impl<T: EmbeddedIcon> SimpleItem<T> {
         Self {
             name,
             display,
-            width: 50,
-            height: 50,
+            size: Size::new(50, 50),
             icon,
         }
     }
@@ -38,7 +40,7 @@ impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
     }
 
     fn get_type(&self) -> super::DisplayAreaType {
-        super::DisplayAreaType::Area(self.width, self.height)
+        super::DisplayAreaType::Icon(self.size)
     }
 
     fn get_name(&self) -> &str {
@@ -50,11 +52,8 @@ impl<T: EmbeddedIcon> DisplayComponent for SimpleItem<T> {
         target: &mut Canvas<BWRColor>,
         _values: &ApplicationState,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.draw_icon(
-            target,
-            0.0,
-            Point::new(self.width as i32 / 2, self.height as i32 / 2),
-        );
+        let center = Point::new((self.size.width / 2) as i32, (self.size.height / 2) as i32);
+        self.draw_icon(target, 0.0, center);
 
         Ok(())
     }

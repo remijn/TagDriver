@@ -5,13 +5,14 @@ pub mod bar_dialog;
 pub mod image_background;
 pub mod simple_item;
 pub mod state_item;
+pub mod workspace_indicator;
 
 use embedded_canvas::Canvas;
 use embedded_graphics::{
     geometry::{Angle, OriginDimensions, Size},
     image::Image,
     prelude::Point,
-    primitives::{Arc, Circle, Primitive, PrimitiveStyle},
+    primitives::{Arc, Circle, Primitive, PrimitiveStyle, Rectangle},
     Drawable,
 };
 
@@ -39,6 +40,7 @@ use crate::{
             image_background::{LoadingImageBackground, StaticImageBackground},
             simple_item::SimpleItem,
             state_item::StateItem,
+            workspace_indicator::WorkspaceIndicator,
         },
         COLOR_FG,
     },
@@ -63,9 +65,10 @@ pub enum RefreshType {
 
 #[derive(PartialEq, Eq)]
 pub enum DisplayAreaType {
-    Area(u32, u32), // item contained in area, i.e. icon for bluetooth
-    Fullscreen,     // Fullscreen thing, large clock or image, stays open
+    Icon(Size), // item contained in area, i.e. icon for bluetooth
+    Fullscreen, // Fullscreen thing, large clock or image, stays open
     Dialog, // Fullscreen dialog that shows on change, (volume or brightness popup, notifications maybe), and dissapears after
+    DisplayArea(Rectangle),
 }
 pub trait DisplayComponent {
     fn get_display(&self) -> u8;
@@ -354,6 +357,15 @@ pub fn make_ui_components(state: ApplicationState) -> Vec<Box<dyn DisplayCompone
         ),
     );
     ui_components.push(Box::new(wifi_icon));
+
+    let workspace_indicator = WorkspaceIndicator::new(
+        "Workspace Indicator",
+        0,
+        Rectangle::new(Point::new(0, 66), Size::new(250, 66)),
+        ("workspace:active", "workspace:count"),
+        state.clone(),
+    );
+    ui_components.push(Box::new(workspace_indicator));
 
     let background_small_bytes = include_bytes!("../../../resources/logo250.bmp");
     let background_small = Box::new(Bmp::<BWRColor>::from_slice(background_small_bytes).unwrap());

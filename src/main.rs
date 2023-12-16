@@ -250,11 +250,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     component.1,
                 );
 
-                let mut size = display.size();
-
-                if let DisplayAreaType::Area(width, height) = component.0.get_type() {
-                    size = Size::new(width, height);
-                }
+                let size: Size = match component.0.get_type() {
+                    DisplayAreaType::Icon(icon_size) => icon_size,
+                    DisplayAreaType::Fullscreen => display.size(),
+                    DisplayAreaType::Dialog => display.size(),
+                    DisplayAreaType::DisplayArea(area) => area.size,
+                };
 
                 let mut canvas = {
                     // draw a rectangle smaller than the canvas (with 1px)
@@ -293,7 +294,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             canvases.reverse();
 
-            let mut pos = Point::new(10, 10);
+            let total_icons_width = canvases
+                .iter()
+                .filter_map(|(_canvas, area)| {
+                    if let DisplayAreaType::Icon(size) = area {
+                        Some(size.width)
+                    } else {
+                        None
+                    }
+                })
+                .reduce(|v, a| v + a)
+                .unwrap_or(0);
+
+            let mut pos = Point::new(((display.size().width - total_icons_width) / 2) as i32, 10);
 
             for canvas in canvases {
                 match canvas.1 {
@@ -302,14 +315,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .place_at(Point::zero())
                         .draw(display)
                         .expect("Could not draw canvas to display"),
-                    DisplayAreaType::Area(width, _height) => {
+
+                    DisplayAreaType::Icon(size) => {
                         canvas
                             .0
                             .place_at(pos)
                             .draw(display)
                             .expect("Could not draw canvas to display");
-
-                        pos += Size::new(width, 0);
+                        pos += Size::new(size.width, 0);
+                    }
+                    DisplayAreaType::DisplayArea(area) => {
+                        canvas
+                            .0
+                            .place_at(area.top_left)
+                            .draw(display)
+                            .expect("Could not draw canvas to display");
                     }
                 }
             }
