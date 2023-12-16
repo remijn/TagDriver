@@ -24,7 +24,7 @@ type DBusPropertyUpdate = (&'static DBusPropertyAdress, Option<Box<dyn RefArg>>)
 #[derive(Debug)]
 pub enum DBusUpdate {
     PropertyUpdate(DBusPropertyUpdate),
-    MethodShowImage(String, u32),
+    MethodShowImage(String),
     MethodSetWorkspaces(u32, u32),
 }
 

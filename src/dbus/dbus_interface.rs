@@ -99,8 +99,6 @@ pub async fn run_dbus_thread(
 
     // Start the DBus Server
 
-    session_conn.request_name("io.remijn.tagdriver", false, true, false)?;
-
     let mut cr = Crossroads::new();
 
     // Let's build a new interface, which can be used for "Hello" objects.
@@ -116,7 +114,7 @@ pub async fn run_dbus_thread(
 
         let clone_tx = tx.clone();
         b.method(
-            "SetImage",
+            "show",
             ("png", "display"),
             ("reply",),
             move |_ctx: &mut Context,
@@ -126,7 +124,7 @@ pub async fn run_dbus_thread(
                 println!("{} SetImage called for display {}", log::DBUS, display);
 
                 clone_tx
-                    .try_send(vec![DBusUpdate::MethodShowImage(png, display)])
+                    .try_send(vec![DBusUpdate::MethodShowImage(png)])
                     .expect("Could not send");
                 let reply = format!("Drawing on display {}", display);
                 Ok((reply,))
@@ -165,6 +163,8 @@ pub async fn run_dbus_thread(
         );
     });
     cr.insert("/", &[iface_token], state.clone());
+
+    session_conn.request_name("io.remijn.tagdriver", false, true, false)?;
 
     session_conn.start_receive(
         dbus::message::MatchRule::new_method_call(),
@@ -315,13 +315,15 @@ pub async fn run_dbus_thread(
                             }
                         }
                     }
-                    DBusUpdate::MethodShowImage(_png, display) => {
-                        print!("update method show image on display {}", display);
+                    DBusUpdate::MethodShowImage(png) => {
+                        print!("update method show image {}", png);
+                        updated |= state_lock
+                            .update("rear-image-path", Some(StateValueType::String(png)))?;
                     }
                     DBusUpdate::MethodSetWorkspaces(active, count) => {
-                        state_lock
+                        updated |= state_lock
                             .update("workspace:active", Some(StateValueType::U64(active as u64)))?;
-                        state_lock
+                        updated |= state_lock
                             .update("workspace:count", Some(StateValueType::U64(count as u64)))?;
                     }
                 }
