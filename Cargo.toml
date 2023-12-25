@@ -21,7 +21,7 @@ embedded-icon = { version = "0.0.1", features = [
     "mdi",
 ], default-features = false }
 enum_primitive = "0.1.1"
-futures-util = "0.3.28"
+futures-util = "0.3.30"
 image = "0.24.7"
 itertools = "0.12.0"
 networkmanager = { git = "https://github.com/exit91/networkmanager-rs.git" }
